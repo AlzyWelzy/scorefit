@@ -1,0 +1,237 @@
+@import "tailwindcss";
+
+/* =========================================================================
+   ScoreFit — "Ledger" design system
+   Dark-first instrument panel. One ember accent for action, teal for data.
+   ========================================================================= */
+
+@theme {
+  --color-bg: #0b0d0f;
+  --color-surface: #121518;
+  --color-surface-2: #181c20;
+  --color-surface-3: #1f242a;
+
+  --color-line: #23282d;
+  --color-line-2: #2e343a;
+
+  --color-fg: #eceff1;
+  --color-muted: #9ba4ad;
+  --color-faint: #6b747c;
+
+  --color-accent: #ff6a3d;
+  --color-accent-2: #ff854f;
+  --color-accent-press: #e8552b;
+  --color-accent-dim: #2a160f;
+
+  --color-data: #2dd4bf;
+  --color-data-dim: #0f2e2a;
+
+  --color-ok: #34d399;
+  --color-warn: #fbbf24;
+  --color-hard: #f87171;
+
+  --color-prose: #cdd2d8;
+
+  --radius-card: 16px;
+  --radius-lg: 12px;
+}
+
+@theme inline {
+  --font-display: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+}
+
+* { border-color: var(--color-line); }
+
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+
+.grain {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0.04;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.font-display { font-family: var(--font-display); letter-spacing: -0.02em; }
+.tabular { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums lining-nums; letter-spacing: -0.02em; }
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-faint);
+}
+
+.glow-ember {
+  position: absolute;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(255, 106, 61, 0.22), transparent 68%);
+  filter: blur(36px);
+  pointer-events: none;
+  z-index: 0;
+}
+.glow-data {
+  position: absolute;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(45, 212, 191, 0.16), transparent 68%);
+  filter: blur(36px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.bg-grid {
+  background-image:
+    linear-gradient(#ffffff08 1px, transparent 1px),
+    linear-gradient(90deg, #ffffff08 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 90% 60% at 50% 0%, #000 25%, transparent 80%);
+}
+
+.media-treat {
+  filter: grayscale(0.28) contrast(1.06) brightness(0.92) saturate(0.9);
+  transition: filter 0.4s ease, transform 0.5s ease;
+}
+.group:hover .media-treat {
+  filter: grayscale(0) contrast(1.04) brightness(1) saturate(1.05);
+  transform: scale(1.04);
+}
+
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; border-radius: 4px; }
+::selection { background: var(--color-accent); color: #0b0d0f; }
+
+/* ---- Editorial prose (guidebook) ---- */
+.prose-log { color: var(--color-prose); line-height: 1.75; font-size: 1.0625rem; }
+.prose-log > *:first-child { margin-top: 0; }
+.prose-log h2 { font-family: var(--font-display); font-size: 1.7rem; font-weight: 700; letter-spacing: -0.02em; color: var(--color-fg); margin: 2.4rem 0 0.9rem; }
+.prose-log h3 { font-family: var(--font-display); font-size: 1.22rem; font-weight: 600; color: var(--color-fg); margin: 1.9rem 0 0.6rem; }
+.prose-log p { margin: 0.95rem 0; }
+.prose-log ul, .prose-log ol { margin: 0.95rem 0; padding-left: 1.35rem; }
+.prose-log li { margin: 0.45rem 0; }
+.prose-log li::marker { color: var(--color-accent); }
+.prose-log strong { color: var(--color-fg); font-weight: 600; }
+.prose-log a { color: var(--color-data); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: color-mix(in srgb, var(--color-data) 45%, transparent); }
+.prose-log a:hover { text-decoration-color: var(--color-data); }
+.prose-log table { width: 100%; border-collapse: collapse; margin: 1.4rem 0; font-size: 0.9rem; }
+.prose-log th, .prose-log td { border: 1px solid var(--color-line); padding: 0.6rem 0.8rem; text-align: left; vertical-align: top; }
+.prose-log th { background: var(--color-surface-2); font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-muted); }
+.prose-log code { font-family: var(--font-mono); background: var(--color-surface-2); padding: 0.12rem 0.4rem; border-radius: 5px; font-size: 0.85em; color: var(--color-data); }
+.prose-log blockquote { border-left: 2px solid var(--color-accent); padding-left: 1.1rem; margin: 1.3rem 0; color: var(--color-muted); font-style: italic; }
+.prose-log hr { border: none; border-top: 1px solid var(--color-line); margin: 2.2rem 0; }
+
+/* Entrance animations — pure CSS, run on load, never gate content on JS */
+@keyframes sfRise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+.sf-rise { animation: sfRise 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@keyframes sfGrow {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+.sf-grow { transform-origin: bottom; animation: sfGrow 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* =========================================================================
+   Light editorial theme — opt-in for long-form reading (guidebook articles).
+   Overrides the dark tokens within the subtree; chrome stays dark.
+   ========================================================================= */
+.theme-editorial {
+  --color-bg: #faf9f7;
+  --color-surface: #ffffff;
+  --color-surface-2: #f4f2ee;
+  --color-surface-3: #ece9e3;
+
+  --color-line: #e6e3dd;
+  --color-line-2: #d6d2ca;
+
+  --color-fg: #16191c;
+  --color-muted: #565c63;
+  --color-faint: #8a9099;
+
+  --color-accent: #d24a22;
+  --color-accent-2: #e8552b;
+  --color-accent-press: #b83d18;
+  --color-accent-dim: #f7ece7;
+
+  --color-data: #0e8c7e;
+  --color-data-dim: #e2f1ee;
+  --color-prose: #2e333a;
+
+  --color-ok: #15803d;
+  --color-warn: #b45309;
+  --color-hard: #b91c1c;
+
+  background-color: var(--color-bg);
+  color: var(--color-fg);
+}
+.theme-editorial ::selection { background: var(--color-accent-dim); }
+
+/* =========================================================================
+   Print — ink-friendly workout sheet. Flip tokens to grayscale, drop chrome.
+   ========================================================================= */
+@media print {
+  :root, body, .theme-editorial {
+    --color-bg: #fff;
+    --color-surface: #fff;
+    --color-surface-2: #fff;
+    --color-surface-3: #fff;
+    --color-line: #cfcfcf;
+    --color-line-2: #b8b8b8;
+    --color-fg: #000;
+    --color-muted: #2b2b2b;
+    --color-faint: #5c5c5c;
+    --color-accent: #000;
+    --color-accent-2: #000;
+    --color-accent-press: #000;
+    --color-accent-dim: #eee;
+    --color-data: #000;
+    --color-data-dim: #eee;
+    --color-prose: #000;
+  }
+  .grain,
+  header,
+  footer {
+    display: none !important;
+  }
+  body {
+    background: #fff !important;
+    overflow: visible !important;
+  }
+  main {
+    max-width: none !important;
+  }
+  [class*="sticky"] {
+    position: static !important;
+  }
+  section {
+    break-inside: avoid;
+  }
+  a {
+    text-decoration: none !important;
+    color: #000 !important;
+  }
+}

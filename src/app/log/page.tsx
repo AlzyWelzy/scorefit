@@ -1,0 +1,66 @@
+import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { auth } from "@/auth";
+import { getProgram, getWeek, PROGRAM_META, type ProgramId } from "@/lib/data";
+import { getLogsForWeek } from "@/db/logs";
+import { Logger, type LogDay, type InitialLog } from "@/components/logger/Logger";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic"; // reads session + db; never prerender
+
+export const metadata: Metadata = { title: "Workout log" };
+
+function parseSets(v: string | null | undefined): number {
+  const n = parseInt((v ?? "1").trim(), 10);
+  return Number.isFinite(n) && n > 0 ? Math.min(n, 12) : 1;
+}
+
+export default async function LogPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ program?: string; week?: string }>;
+}) {
+  const session = await auth();
+  if (!session?.user?.id) redirect("/login?callbackUrl=/log");
+
+  const sp = await searchParams;
+  const program: ProgramId = sp.program === "intermediate" ? "intermediate" : "beginner";
+  const prog = getProgram(program)!;
+  const maxWeek = prog.weeks.length;
+  const weekReq = parseInt(sp.week ?? "1", 10);
+  const week = Number.isFinite(weekReq) ? Math.min(Math.max(weekReq, 1), maxWeek) : 1;
+
+  const w = getWeek(program, week)!;
+  const days: LogDay[] = w.days.map((d) => ({
+    slug: d.slug,
+    title: d.title,
+    exercises: d.exercises.map((ex) => ({
+      slug: ex.slug,
+      name: ex.name,
+      sets: parseSets(ex.workingSets),
+      reps: ex.reps ?? null,
+      lastRPE: ex.lastRPE ?? null,
+    })),
+  }));
+
+  const rows = await getLogsForWeek(session.user.id, program, week);
+  const initialLogs: InitialLog[] = rows.map((r) => ({
+    daySlug: r.daySlug,
+    exerciseSlug: r.exerciseSlug,
+    setIndex: r.setIndex,
+    weight: r.weight,
+    reps: r.reps,
+    completed: r.completed,
+  }));
+
+  return (
+    <Logger
+      program={program}
+      programName={PROGRAM_META[program].name}
+      week={week}
+      weeks={prog.weeks.map((x) => x.number)}
+      days={days}
+      initialLogs={initialLogs}
+    />
+  );
+}
