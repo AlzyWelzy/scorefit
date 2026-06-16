@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { getProgramOrThrow, isProgramId, parseSets, PROGRAM_META, type ProgramId } from "@/lib/data";
+import { getProgramOrThrow, isProgramId, parseSets, uniqueDaySlug, PROGRAM_META, type ProgramId } from "@/lib/data";
 import { getLogsForProgram } from "@/db/logs";
 
 export const runtime = "nodejs";
@@ -33,12 +33,15 @@ export default async function ProgressPage({
   const validCoords = new Set<string>();
   for (const w of prog.weeks) {
     let count = 0;
-    for (const d of w.days)
+    const rawSlugs = w.days.map((d) => d.slug);
+    w.days.forEach((d, di) => {
+      const daySlug = uniqueDaySlug(d.slug, di, rawSlugs);
       for (const ex of d.exercises) {
         const sets = parseSets(ex.workingSets);
         count += sets;
-        for (let i = 1; i <= sets; i++) validCoords.add(`${w.number}|${d.slug}|${ex.slug}|${i}`);
+        for (let i = 1; i <= sets; i++) validCoords.add(`${w.number}|${daySlug}|${ex.slug}|${i}`);
       }
+    });
     prescribed.set(w.number, count);
   }
 

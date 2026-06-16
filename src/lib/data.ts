@@ -65,6 +65,17 @@ export function parseSets(v: string | null | undefined): number {
   return Number.isFinite(n) && n > 0 ? Math.min(n, 12) : 1;
 }
 
+/**
+ * Some weeks contain two training days that share a slug in the source data,
+ * which collides as a React key and as a workout-log coordinate. Make slugs
+ * unique within a list of days by suffixing repeats (`-2`, `-3`, …). The first
+ * occurrence keeps its original slug so existing logs still match.
+ */
+export function uniqueDaySlug(slug: string, indexWithinWeek: number, priorSlugs: string[]): string {
+  const seenBefore = priorSlugs.slice(0, indexWithinWeek).filter((s) => s === slug).length;
+  return seenBefore === 0 ? slug : `${slug}-${seenBefore + 1}`;
+}
+
 export function getWeek(programId: string, weekNumber: number) {
   const p = getProgram(programId);
   if (!p) return null;

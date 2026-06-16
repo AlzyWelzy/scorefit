@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
 import { Check } from "lucide-react";
 import { Field } from "@/components/auth/Field";
+import { TwoFactorSection } from "@/components/account/TwoFactorSection";
 
 type Unit = "kg" | "lb";
 
@@ -37,6 +38,7 @@ export function AccountManager({
     <div className="space-y-5">
       <ProfileSection name={name} unit={unit} />
       <EmailSection email={email} emailVerified={emailVerified} />
+      <TwoFactorSection />
       <PasswordSection />
       <DangerSection />
     </div>

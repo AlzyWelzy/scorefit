@@ -12,8 +12,28 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash"),
   // Preferred weight unit for the logger / progress / plate calculator.
   unit: text("unit").notNull().default("kg"), // "kg" | "lb"
+  // Two-factor auth. Method is the user's chosen second factor; the TOTP
+  // secret is stored encrypted (AES-256-GCM) and only present for method=totp.
+  twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
+  twoFactorMethod: text("two_factor_method", { enum: ["email", "totp"] }),
+  totpSecret: text("totp_secret"), // encrypted base32 secret, null unless TOTP configured
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// One-time backup codes for 2FA recovery. Each row is a SHA-256 hash of a code;
+// rows are deleted as they are consumed.
+export const backupCodes = pgTable(
+  "backup_codes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    codeHash: text("code_hash").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("idx_backup_user").on(t.userId)],
+);
 
 // Short-lived hashed tokens for email verification (OTP) and password reset.
 // We store a SHA-256 hash of the code, never the code itself, so a DB leak
@@ -25,7 +45,7 @@ export const verificationTokens = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    purpose: text("purpose").notNull(), // "email_verify" | "password_reset"
+    purpose: text("purpose").notNull(), // "email_verify" | "password_reset" | "two_factor"
     codeHash: text("code_hash").notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     attempts: integer("attempts").notNull().default(0),
@@ -64,3 +84,4 @@ export type User = typeof users.$inferSelect;
 export type WorkoutLog = typeof workoutLogs.$inferSelect;
 export type NewWorkoutLog = typeof workoutLogs.$inferInsert;
 export type VerificationToken = typeof verificationTokens.$inferSelect;
+export type BackupCode = typeof backupCodes.$inferSelect;

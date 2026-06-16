@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { getProgramOrThrow, getWeek, isProgramId, parseSets, PROGRAM_META, type ProgramId } from "@/lib/data";
+import { getProgramOrThrow, getWeek, isProgramId, parseSets, uniqueDaySlug, PROGRAM_META, type ProgramId } from "@/lib/data";
 import { getLogsForWeek, getPreviousLoads } from "@/db/logs";
 import { Logger, type LogDay, type InitialLog, type PrevLoad } from "@/components/logger/Logger";
 
@@ -26,8 +26,9 @@ export default async function LogPage({
   const week = Number.isFinite(weekReq) ? Math.min(Math.max(weekReq, 1), maxWeek) : 1;
 
   const w = getWeek(program, week)!;
-  const days: LogDay[] = w.days.map((d) => ({
-    slug: d.slug,
+  const rawSlugs = w.days.map((d) => d.slug);
+  const days: LogDay[] = w.days.map((d, i) => ({
+    slug: uniqueDaySlug(d.slug, i, rawSlugs),
     title: d.title,
     exercises: d.exercises.map((ex) => ({
       slug: ex.slug,

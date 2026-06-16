@@ -232,8 +232,8 @@ export function Logger({
       </div>
 
       <div className="mt-8 space-y-10">
-        {days.map((d) => (
-          <section key={d.slug}>
+        {days.map((d, di) => (
+          <section key={`${d.slug}-${di}`}>
             <h2 className="mb-3 border-b border-line pb-2 font-display text-lg font-semibold">{d.title}</h2>
             <div className="space-y-5">
               {d.exercises.map((ex) => (

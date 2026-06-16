@@ -3,15 +3,48 @@ import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
+import { cookies } from "next/headers";
 import { authConfig } from "@/auth.config";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { rateLimit, clientIp } from "@/lib/rateLimit";
+import { verifyTotp, decryptSecret } from "@/lib/totp";
+import { verifyToken } from "@/db/tokens";
+import { consumeBackupCode } from "@/db/twoFactor";
+import { verifyPending, PENDING_2FA_COOKIE } from "@/lib/pending2fa";
 
 const credentialsSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
+  // Present only on the 2FA second step.
+  code: z.string().optional(),
 });
+
+// Verify a 2FA code against the user's configured method, or a backup code.
+async function verifySecondFactor(
+  user: typeof users.$inferSelect,
+  code: string,
+): Promise<boolean> {
+  const clean = code.trim();
+  // Backup codes are formatted XXXX-XXXX; try them first if it looks like one.
+  if (/^[0-9a-zA-Z]{4}-?[0-9a-zA-Z]{4}$/.test(clean) && clean.includes("-")) {
+    if (await consumeBackupCode(user.id, clean)) return true;
+  }
+  if (user.twoFactorMethod === "totp" && user.totpSecret) {
+    try {
+      if (verifyTotp(decryptSecret(user.totpSecret), clean)) return true;
+    } catch {
+      /* fall through */
+    }
+  }
+  if (user.twoFactorMethod === "email") {
+    const res = await verifyToken(user.id, "two_factor", clean);
+    if (res.ok) return true;
+  }
+  // Last resort: also accept a backup code that wasn't dash-formatted.
+  if (await consumeBackupCode(user.id, clean)) return true;
+  return false;
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -20,11 +53,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: "jwt", maxAge: 60 * 60 * 24 * 30, updateAge: 60 * 60 * 24 },
   providers: [
     Credentials({
-      credentials: { email: {}, password: {} },
+      credentials: { email: {}, password: {}, code: {} },
       async authorize(raw) {
         const parsed = credentialsSchema.safeParse(raw);
         if (!parsed.success) return null;
-        const { email, password } = parsed.data;
+        const { email, password, code } = parsed.data;
         // Throttle credential checks: 10 attempts / 10 min per IP+email.
         const ip = await clientIp();
         const rl = await rateLimit("login", `${ip}:${email.toLowerCase()}`, 10, 10 * 60 * 1000);
@@ -38,6 +71,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!user?.passwordHash) return null;
         const ok = await bcrypt.compare(password, user.passwordHash);
         if (!ok) return null;
+
+        // Second-factor enforcement.
+        if (user.twoFactorEnabled) {
+          if (!code) return null; // must go through the /login/2fa step
+          // The pending cookie proves the password step happened for THIS user
+          // and binds the second factor to it.
+          const jar = await cookies();
+          const pending = verifyPending(jar.get(PENDING_2FA_COOKIE)?.value);
+          if (!pending || pending.userId !== user.id) return null;
+          const passed = await verifySecondFactor(user, code);
+          if (!passed) return null;
+        }
+
         return {
           id: user.id,
           email: user.email,
