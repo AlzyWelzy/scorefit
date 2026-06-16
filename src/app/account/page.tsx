@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { getUserById } from "@/db/users";
 import { AccountManager } from "@/components/account/AccountManager";
 
 export const runtime = "nodejs";
@@ -14,7 +15,10 @@ export default async function AccountPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login?callbackUrl=/account");
 
-  const { name, email, unit, verified } = session.user;
+  // Read the live row, not the (possibly stale) JWT — verification/unit can
+  // change after sign-in, and this page must always reflect the truth.
+  const user = await getUserById(session.user.id);
+  if (!user) redirect("/login?callbackUrl=/account");
 
   return (
     <div className="mx-auto max-w-2xl px-5 py-12">
@@ -25,10 +29,10 @@ export default async function AccountPage() {
       </p>
       <div className="mt-8">
         <AccountManager
-          name={name ?? null}
-          email={email ?? ""}
-          unit={unit}
-          emailVerified={verified}
+          name={user.name ?? null}
+          email={user.email}
+          unit={user.unit as "kg" | "lb"}
+          emailVerified={!!user.emailVerified}
         />
       </div>
     </div>

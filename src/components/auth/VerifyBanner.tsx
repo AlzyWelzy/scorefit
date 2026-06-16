@@ -1,20 +1,47 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useSession } from "next-auth/react";
 import { MailWarning } from "lucide-react";
 
-// Soft gate: shown to signed-in users whose email isn't verified. Non-blocking —
-// they can keep using the app, but we nudge them to verify. Self-gating on the
-// client so the root layout can stay statically prerendered.
+// Soft gate for signed-in, unverified users. Gates on the LIVE account status
+// (DB-backed /api/account/status), never the session JWT — so it shows the
+// truth on first paint and disappears the moment the email is verified, even
+// if the JWT hasn't been re-minted yet. Self-gating keeps the root layout static.
 export function VerifyBanner() {
-  const { data: session, status } = useSession();
+  const [show, setShow] = useState(false);
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  if (status !== "authenticated" || session?.user?.verified) return null;
+  const refresh = useCallback(async () => {
+    try {
+      const res = await fetch("/api/account/status", { cache: "no-store" });
+      if (!res.ok) {
+        setShow(false);
+        return;
+      }
+      const data = (await res.json()) as { authenticated: boolean; verified?: boolean };
+      setShow(data.authenticated && data.verified === false);
+    } catch {
+      setShow(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+    const onFocus = () => void refresh();
+    const onVerified = () => setShow(false);
+    window.addEventListener("focus", onFocus);
+    // The verify form dispatches this on success for an instant dismiss.
+    window.addEventListener("scorefit-email-verified", onVerified);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("scorefit-email-verified", onVerified);
+    };
+  }, [refresh]);
+
+  if (!show) return null;
 
   async function resend() {
     setBusy(true);

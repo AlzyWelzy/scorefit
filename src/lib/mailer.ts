@@ -21,23 +21,45 @@ function transport(): Transporter | null {
     port,
     secure: port === 465, // implicit TLS on 465, STARTTLS otherwise
     auth: { user: SMTP_USER, pass: SMTP_PASS },
+    // Office365/Gmail can be slow to negotiate; give them room.
+    connectionTimeout: 15_000,
+    greetingTimeout: 10_000,
   });
   return cached;
 }
 
-const FROM = process.env.EMAIL_FROM ?? "ScoreFit <no-reply@scorefit.net>";
+// Read FROM lazily so it reflects env at call time, not module-load time.
+function fromAddress(): string {
+  return process.env.EMAIL_FROM ?? "ScoreFit <no-reply@scorefit.net>";
+}
 
 export async function sendMail(opts: { to: string; subject: string; html: string; text: string }) {
   const t = transport();
   if (!t) {
     // Dev fallback — surface the content so OTP flows can be tested locally.
     console.warn(
-      `[mailer] SMTP not configured; would send to ${opts.to}\n` +
+      `[mailer] SMTP not configured (SMTP_HOST/USER/PASS missing); would send to ${opts.to}\n` +
         `  Subject: ${opts.subject}\n  ${opts.text}`,
     );
     return;
   }
-  await t.sendMail({ from: FROM, to: opts.to, subject: opts.subject, html: opts.html, text: opts.text });
+  try {
+    const info = await t.sendMail({
+      from: fromAddress(),
+      to: opts.to,
+      subject: opts.subject,
+      html: opts.html,
+      text: opts.text,
+    });
+    console.log(`[mailer] sent to ${opts.to} (${info.messageId})`);
+  } catch (err) {
+    // Re-throw so the caller can decide; but log the real SMTP error first.
+    const e = err as { code?: string; responseCode?: number; command?: string; message?: string };
+    console.error(
+      `[mailer] send FAILED to ${opts.to}: code=${e.code} responseCode=${e.responseCode} command=${e.command} — ${e.message}`,
+    );
+    throw err;
+  }
 }
 
 const wrap = (title: string, body: string) => `

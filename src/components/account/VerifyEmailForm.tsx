@@ -50,6 +50,8 @@ export function VerifyEmailForm() {
         }
         return;
       }
+      // Instantly dismiss the verify banner, refresh the session JWT, then go.
+      window.dispatchEvent(new CustomEvent("scorefit-email-verified"));
       await update();
       router.push("/log");
       router.refresh();

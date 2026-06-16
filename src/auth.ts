@@ -103,9 +103,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         t.unit = (user as { unit?: "kg" | "lb" }).unit ?? "kg";
         t.verified = (user as { verified?: boolean }).verified ?? false;
       }
-      // When the client calls useSession().update(), re-read from the DB so
-      // unit / verification changes from /account propagate without re-login.
-      if (trigger === "update" && t.sub) {
+      // Re-read from the DB when:
+      //  - the client called useSession().update() (unit/email changes), OR
+      //  - the token still says unverified (so a verification done in another
+      //    tab/device propagates without an explicit update() or re-login).
+      // Once verified=true this branch stops running, so it's a bounded cost.
+      const needsRefresh = trigger === "update" || t.verified === false || t.verified === undefined;
+      if (needsRefresh && t.sub) {
         const fresh = await db
           .select({ unit: users.unit, emailVerified: users.emailVerified, email: users.email })
           .from(users)
