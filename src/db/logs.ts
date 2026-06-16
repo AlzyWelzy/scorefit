@@ -69,9 +69,10 @@ export async function getPreviousLoads(
         eq(workoutLogs.completed, true),
       ),
     )
-    .orderBy(desc(workoutLogs.week));
+    .orderBy(desc(workoutLogs.week), desc(workoutLogs.weight));
 
-  // First row per (exercise|setIndex) wins because rows are week-descending.
+  // First row per (exercise|setIndex) wins: week-descending, then heaviest first
+  // within a week, so the "last: N × R" hint reflects the documented heaviest set.
   const out: Record<string, { weight: number | null; reps: number | null; week: number }> = {};
   for (const r of rows) {
     const key = `${r.exerciseSlug}|${r.setIndex}`;

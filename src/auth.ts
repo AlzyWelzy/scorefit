@@ -14,7 +14,7 @@ import { consumeBackupCode } from "@/db/twoFactor";
 import { verifyPending, PENDING_2FA_COOKIE } from "@/lib/pending2fa";
 
 const credentialsSchema = z.object({
-  email: z.string().email(),
+  email: z.email(),
   password: z.string().min(8),
   // Present only on the 2FA second step.
   code: z.string().optional(),
@@ -26,10 +26,6 @@ async function verifySecondFactor(
   code: string,
 ): Promise<boolean> {
   const clean = code.trim();
-  // Backup codes are formatted XXXX-XXXX; try them first if it looks like one.
-  if (/^[0-9a-zA-Z]{4}-?[0-9a-zA-Z]{4}$/.test(clean) && clean.includes("-")) {
-    if (await consumeBackupCode(user.id, clean)) return true;
-  }
   if (user.twoFactorMethod === "totp" && user.totpSecret) {
     try {
       if (verifyTotp(decryptSecret(user.totpSecret), clean)) return true;
@@ -41,7 +37,8 @@ async function verifySecondFactor(
     const res = await verifyToken(user.id, "two_factor", clean);
     if (res.ok) return true;
   }
-  // Last resort: also accept a backup code that wasn't dash-formatted.
+  // Backup code fallback — consumeBackupCode normalises dashes/case, so a single
+  // attempt covers both XXXX-XXXX and XXXXXXXX forms.
   if (await consumeBackupCode(user.id, clean)) return true;
   return false;
 }

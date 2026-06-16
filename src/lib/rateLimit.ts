@@ -11,8 +11,20 @@ export type RateResult = { ok: boolean; remaining: number; retryAfter: number };
 
 const buckets = new Map<string, { count: number; resetAt: number }>();
 
+// Opportunistically evict expired buckets so a long-running single instance
+// doesn't accumulate one entry per distinct IP/email key forever.
+let lastSweep = 0;
+function sweepExpired(now: number) {
+  if (now - lastSweep < 60_000) return;
+  lastSweep = now;
+  for (const [k, v] of buckets) {
+    if (v.resetAt <= now) buckets.delete(k);
+  }
+}
+
 function memoryLimit(key: string, limit: number, windowMs: number): RateResult {
   const now = Date.now();
+  sweepExpired(now);
   const b = buckets.get(key);
   if (!b || b.resetAt <= now) {
     buckets.set(key, { count: 1, resetAt: now + windowMs });
@@ -91,10 +103,11 @@ export async function sameOrigin(): Promise<boolean> {
   const h = await headers();
   const origin = h.get("origin");
   if (!origin) {
-    // No Origin header (e.g. same-origin GET-style fetch in some browsers) —
-    // fall back to Sec-Fetch-Site which modern browsers send.
+    // No Origin header — fall back to Sec-Fetch-Site, which every modern browser
+    // sends on state-changing requests. Default-deny when BOTH are absent (a
+    // non-browser client stripping headers) rather than treating it as same-origin.
     const site = h.get("sec-fetch-site");
-    return site === "same-origin" || site === "same-site" || site === null;
+    return site === "same-origin" || site === "same-site";
   }
   const host = h.get("host");
   try {

@@ -22,7 +22,6 @@ type TotpSetup = {
 
 const errorBox =
   "rounded-lg border border-hard/30 bg-hard/10 px-3 py-2 text-sm text-hard";
-const okBox = "rounded-lg border border-ok/30 bg-ok/10 px-3 py-2 text-sm text-ok";
 const submitBtn =
   "rounded-lg bg-accent px-4 py-2.5 font-semibold text-bg transition-colors hover:bg-accent-2 disabled:opacity-60";
 const ghostBtn =
@@ -228,7 +227,10 @@ export function TwoFactorSection() {
       )}
 
       {status && (
-        <div className="mt-3 space-y-4" aria-live="polite">
+        // No aria-live here: this container swaps whole views (QR, backup-code
+        // grid, enabled state), so a live region would re-announce the entire
+        // subtree. Concise status uses role="alert" on the error/notice nodes.
+        <div className="mt-3 space-y-4">
           {/* ---- Backup codes screen (after confirm / regenerate) ---- */}
           {backupCodes ? (
             <BackupCodes
@@ -292,7 +294,7 @@ function DisabledState({
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted">
-        Add a second step when you sign in. We'll ask for a one-time code in
+        Add a second step when you sign in. We&apos;ll ask for a one-time code in
         addition to your password, so your account stays safe even if your
         password leaks.
       </p>
@@ -389,7 +391,7 @@ function SetupFlow({
           />
           <div>
             <span className="mb-1 block font-mono text-[0.7rem] uppercase tracking-[0.16em] text-muted">
-              Can't scan? Enter this key
+              Can&apos;t scan? Enter this key
             </span>
             <code className="num block break-all rounded-lg border border-line bg-bg px-3 py-2 text-sm text-fg">
               {totp.secret}
@@ -400,7 +402,7 @@ function SetupFlow({
 
       {method === "email" && (
         <p className="text-sm text-muted">
-          We've emailed you a 6-digit code. Enter it below to finish enabling
+          We&apos;ve emailed you a 6-digit code. Enter it below to finish enabling
           two-factor authentication.
         </p>
       )}
@@ -471,7 +473,7 @@ function BackupCodes({ codes, onDone }: { codes: string[]; onDone: () => void })
       </div>
 
       <p role="alert" className="rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 text-sm text-warn">
-        Save these now — each code works once and they won't be shown again. Use
+        Save these now — each code works once and they won&apos;t be shown again. Use
         them to sign in if you lose access to your device.
       </p>
 

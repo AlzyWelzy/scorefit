@@ -9,7 +9,7 @@ import { rateLimit, clientIp, sameOrigin } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
-const schema = z.object({ email: z.string().email(), password: z.string().min(8) });
+const schema = z.object({ email: z.email(), password: z.string().min(8) });
 
 // Step 1 of login. Verifies the password WITHOUT issuing a session. If 2FA is
 // on, sets a short-lived pending cookie (and emails a code for the email

@@ -14,7 +14,7 @@ export const runtime = "nodejs";
 
 const patchSchema = z.object({
   name: z.string().trim().min(1).max(80).nullable().optional(),
-  email: z.string().email().optional(),
+  email: z.email().optional(),
   unit: z.enum(["kg", "lb"]).optional(),
   // Required only when changing email or password.
   currentPassword: z.string().optional(),

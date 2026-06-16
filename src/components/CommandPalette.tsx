@@ -98,13 +98,14 @@ export function CommandPalette({ index }: { index: SearchEntry[] }) {
     if (open) {
       // remember what had focus so we can restore it on close
       restoreFocusRef.current = document.activeElement as HTMLElement | null;
+      // Reset the selection and focus the input when the palette enters — an
+      // intentional "on open" side-effect tied to focus management.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setActive(0);
       // focus after paint
       requestAnimationFrame(() => inputRef.current?.focus());
     }
   }, [open]);
-
-  useEffect(() => setActive(0), [q]);
 
   // keep active item in view
   useEffect(() => {
@@ -128,7 +129,10 @@ export function CommandPalette({ index }: { index: SearchEntry[] }) {
           <input
             ref={inputRef}
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setActive(0);
+            }}
             onKeyDown={(e) => {
               if (e.key === "ArrowDown") {
                 e.preventDefault();
@@ -139,6 +143,11 @@ export function CommandPalette({ index }: { index: SearchEntry[] }) {
               } else if (e.key === "Enter") {
                 e.preventDefault();
                 go();
+              } else if (e.key === "Tab") {
+                // Trap focus in the dialog: navigation is via arrows +
+                // aria-activedescendant, so keep focus on the input rather than
+                // letting Tab escape to the page behind the modal.
+                e.preventDefault();
               }
             }}
             placeholder="Search exercises, weeks, guide…"
@@ -173,6 +182,7 @@ export function CommandPalette({ index }: { index: SearchEntry[] }) {
                         key={r.id}
                         id={`cmdk-opt-${idx}`}
                         role="option"
+                        tabIndex={-1}
                         aria-selected={isActive}
                         data-idx={idx}
                         onMouseMove={() => setActive(idx)}

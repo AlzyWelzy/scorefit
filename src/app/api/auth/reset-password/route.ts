@@ -8,7 +8,7 @@ import { rateLimit, clientIp, sameOrigin } from "@/lib/rateLimit";
 export const runtime = "nodejs";
 
 const schema = z.object({
-  email: z.string().email(),
+  email: z.email(),
   code: z.string().regex(/^\d{6}$/, "Enter the 6-digit code."),
   password: z.string().min(8, "Password must be at least 8 characters"),
 });

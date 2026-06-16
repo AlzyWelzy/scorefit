@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 
@@ -14,21 +14,22 @@ export function VerifyEmailForm() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(0);
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const counting = cooldown > 0;
 
-  // Tick the resend cooldown down to zero.
+  // Tick the resend cooldown down to zero while it is active.
   useEffect(() => {
-    if (cooldown <= 0) return;
-    timer.current = setInterval(() => {
+    if (!counting) return;
+    const id = setInterval(() => {
       setCooldown((c) => {
-        if (c <= 1 && timer.current) clearInterval(timer.current);
+        if (c <= 1) {
+          clearInterval(id);
+          return 0;
+        }
         return c - 1;
       });
     }, 1000);
-    return () => {
-      if (timer.current) clearInterval(timer.current);
-    };
-  }, [cooldown > 0]);
+    return () => clearInterval(id);
+  }, [counting]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();

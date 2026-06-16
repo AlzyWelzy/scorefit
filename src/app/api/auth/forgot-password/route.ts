@@ -7,7 +7,7 @@ import { rateLimit, clientIp, sameOrigin } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
-const schema = z.object({ email: z.string().email() });
+const schema = z.object({ email: z.email() });
 
 // POST { email } → if the account exists, email a reset code. Always returns
 // the same response (enumeration-safe).

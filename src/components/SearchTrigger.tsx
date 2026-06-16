@@ -1,13 +1,19 @@
 "use client";
 
 import { Search } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
+
+const subscribe = () => () => {};
 
 export function SearchTrigger() {
-  const [mac, setMac] = useState(true);
-  useEffect(() => {
-    setMac(/Mac|iPhone|iPad/.test(navigator.platform));
-  }, []);
+  // Detect macOS on the client without a hydration flash: SSR and the first
+  // hydration render use the server snapshot (⌘), then React re-renders with the
+  // real value. Using a store (vs. an effect) keeps render the single source.
+  const mac = useSyncExternalStore(
+    subscribe,
+    () => /Mac|iPhone|iPad/i.test(navigator.platform),
+    () => true,
+  );
   return (
     <button
       type="button"

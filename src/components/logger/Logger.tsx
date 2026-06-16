@@ -77,8 +77,15 @@ export function Logger({
     const localKey = parts.slice(2).join("|");
     setSaving((s) => {
       if (state === "saved") {
-        // Clear the badge shortly after a successful save.
-        setTimeout(() => setSaving((cur) => ({ ...cur, [localKey]: undefined as never })), 1200);
+        // Clear the badge shortly after a successful save — but only if it's
+        // still "saved", so a newer in-flight edit's status isn't wiped.
+        setTimeout(
+          () =>
+            setSaving((cur) =>
+              cur[localKey] === "saved" ? { ...cur, [localKey]: undefined as never } : cur,
+            ),
+          1200,
+        );
       }
       return { ...s, [localKey]: state };
     });
@@ -123,6 +130,8 @@ export function Logger({
 
   // Online/offline + outbox flush + auth-expiry signalling.
   useEffect(() => {
+    // Sync live connectivity/outbox state on mount, then subscribe below.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setOnline(navigator.onLine);
     setPending(pendingCount());
     void flushOutbox(onState);
@@ -184,7 +193,7 @@ export function Logger({
       </div>
 
       {/* connection / sync status */}
-      <div aria-live="polite" className="mt-3 min-h-[1.25rem] text-xs">
+      <div aria-live="polite" className="mt-3 min-h-5 text-xs">
         {authExpired ? (
           <span className="inline-flex items-center gap-1.5 text-hard">
             Session expired — <Link href="/login?callbackUrl=/log" className="underline">sign in again</Link> to sync.

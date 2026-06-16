@@ -26,6 +26,8 @@ export function CountUp({
   useEffect(() => {
     if (!inView) return;
     if (reduce) {
+      // Reduced motion: jump straight to the final value (no animation).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setVal(to);
       return;
     }
