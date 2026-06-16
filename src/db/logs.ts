@@ -1,12 +1,13 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { workoutLogs, type WorkoutLog } from "@/db/schema";
+import type { ProgramId } from "@/lib/data";
 
 // Thin repository so the persistence layer stays swappable behind these calls.
 
 export async function getLogsForWeek(
   userId: string,
-  program: string,
+  program: ProgramId,
   week: number,
 ): Promise<WorkoutLog[]> {
   return db
@@ -21,7 +22,7 @@ export async function getLogsForWeek(
     );
 }
 
-export async function getLogsForProgram(userId: string, program: string): Promise<WorkoutLog[]> {
+export async function getLogsForProgram(userId: string, program: ProgramId): Promise<WorkoutLog[]> {
   return db
     .select()
     .from(workoutLogs)
@@ -29,7 +30,7 @@ export async function getLogsForProgram(userId: string, program: string): Promis
 }
 
 export type SetLogInput = {
-  program: string;
+  program: ProgramId;
   week: number;
   daySlug: string;
   exerciseSlug: string;
@@ -39,6 +40,45 @@ export type SetLogInput = {
   rpe?: number | null;
   completed?: boolean;
 };
+
+/**
+ * Most recent prior entry for a given exercise+set (across earlier weeks of the
+ * same program), so the logger can show "last: 100 × 8" progressive-overload
+ * guidance. Returns the heaviest completed set from the most recent week before
+ * `beforeWeek` where it was logged.
+ */
+export async function getPreviousLoads(
+  userId: string,
+  program: ProgramId,
+  beforeWeek: number,
+): Promise<Record<string, { weight: number | null; reps: number | null; week: number }>> {
+  const rows = await db
+    .select({
+      exerciseSlug: workoutLogs.exerciseSlug,
+      setIndex: workoutLogs.setIndex,
+      weight: workoutLogs.weight,
+      reps: workoutLogs.reps,
+      week: workoutLogs.week,
+    })
+    .from(workoutLogs)
+    .where(
+      and(
+        eq(workoutLogs.userId, userId),
+        eq(workoutLogs.program, program),
+        sql`${workoutLogs.week} < ${beforeWeek}`,
+        eq(workoutLogs.completed, true),
+      ),
+    )
+    .orderBy(desc(workoutLogs.week));
+
+  // First row per (exercise|setIndex) wins because rows are week-descending.
+  const out: Record<string, { weight: number | null; reps: number | null; week: number }> = {};
+  for (const r of rows) {
+    const key = `${r.exerciseSlug}|${r.setIndex}`;
+    if (!out[key]) out[key] = { weight: r.weight, reps: r.reps, week: r.week };
+  }
+  return out;
+}
 
 export async function upsertSetLog(userId: string, input: SetLogInput): Promise<WorkoutLog> {
   const [row] = await db
@@ -69,9 +109,10 @@ export async function upsertSetLog(userId: string, input: SetLogInput): Promise<
         reps: input.reps ?? null,
         rpe: input.rpe ?? null,
         completed: input.completed ?? false,
-        updatedAt: new Date(),
+        updatedAt: sql`now()`,
       },
     })
     .returning();
+  if (!row) throw new Error("upsertSetLog: insert returned no row");
   return row;
 }

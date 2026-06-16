@@ -2,9 +2,16 @@ import { beginner } from "@/data/beginner";
 import { intermediate } from "@/data/intermediate";
 import { exerciseLibrary } from "@/data/exerciseLibrary";
 import { guidebook } from "@/data/guidebook";
-import { appendix } from "@/data/appendix";
 
 export type ProgramId = "beginner" | "intermediate";
+
+/** Single source of truth for valid program ids. Drives static params,
+ *  the sitemap, switchers, and the API z.enum — add a program here once. */
+export const PROGRAM_IDS = ["beginner", "intermediate"] as const;
+
+export function isProgramId(v: string): v is ProgramId {
+  return (PROGRAM_IDS as readonly string[]).includes(v);
+}
 
 export const PROGRAMS = {
   beginner,
@@ -13,11 +20,12 @@ export const PROGRAMS = {
 
 export const PROGRAM_META: Record<
   ProgramId,
-  { id: ProgramId; name: string; tagline: string; level: string; href: string }
+  { id: ProgramId; name: string; shortLabel: string; tagline: string; level: string; href: string }
 > = {
   beginner: {
     id: "beginner",
     name: "Beginner",
+    shortLabel: "Beginner",
     tagline: "Learn the lifts, build the base, master tracking.",
     level: "0–1 yr training",
     href: "/programs/beginner",
@@ -25,6 +33,7 @@ export const PROGRAM_META: Record<
   intermediate: {
     id: "intermediate",
     name: "Intermediate / Advanced",
+    shortLabel: "Int / Adv",
     tagline: "Higher intensity, every last set to failure.",
     level: "1+ yr training",
     href: "/programs/intermediate",
@@ -37,27 +46,52 @@ export function getProgram(id: string) {
   return null;
 }
 
+/** Like getProgram but narrows to ProgramId and throws on an unknown id,
+ *  so call sites avoid the `getProgram(id)!` non-null assertion. */
+export function getProgramOrThrow(id: ProgramId) {
+  const p = getProgram(id);
+  if (!p) throw new Error(`Unknown program: ${id}`);
+  return p;
+}
+
+/** Number of weeks in a program — derive bounds from data, never hardcode 12. */
+export function weekCount(id: ProgramId): number {
+  return getProgramOrThrow(id).weeks.length;
+}
+
+/** Parse a prescribed "working sets" string into a positive count (capped). */
+export function parseSets(v: string | null | undefined): number {
+  const n = parseInt((v ?? "1").trim(), 10);
+  return Number.isFinite(n) && n > 0 ? Math.min(n, 12) : 1;
+}
+
 export function getWeek(programId: string, weekNumber: number) {
   const p = getProgram(programId);
   if (!p) return null;
   return p.weeks.find((w) => w.number === weekNumber) ?? null;
 }
 
+// slug → entry lookup maps, built once at module load instead of a linear
+// scan on every call (hot on /exercises, /log, the search index, etc.).
+const exerciseBySlug = new Map<string, (typeof exerciseLibrary)[number]>(
+  exerciseLibrary.map((e) => [e.slug, e]),
+);
+const guideBySlug = new Map<
+  string,
+  { section: (typeof guidebook.sections)[number]; index: number }
+>(guidebook.sections.map((s, i) => [s.slug, { section: s, index: i }]));
+
 export function getExercise(slug: string) {
-  return exerciseLibrary.find((e) => e.slug === slug) ?? null;
+  return exerciseBySlug.get(slug) ?? null;
 }
 
 export function getGuideSection(slug: string) {
-  return guidebook.sections.find((s) => s.slug === slug) ?? null;
+  return guideBySlug.get(slug)?.section ?? null;
 }
 
-// Strip the redundant leading headers from the raw program intro and return
-// the warm-up / structure prose only.
-export function cleanIntro(raw: string): string {
-  return raw
-    .replace(/^# PART \d+:[^\n]*\n+/i, "")
-    .replace(/^# (Beginner|Intermediate)[^\n]*\n+/i, "")
-    .trim();
+/** Section plus its index, so the guidebook page can build prev/next without a second scan. */
+export function getGuideSectionWithIndex(slug: string) {
+  return guideBySlug.get(slug) ?? null;
 }
 
 // Block label for a given week number (shared by both programs).
@@ -69,4 +103,4 @@ export function isDeload(weekNumber: number): boolean {
   return weekNumber === 1 || weekNumber === 6;
 }
 
-export { exerciseLibrary, guidebook, appendix };
+export { exerciseLibrary, guidebook };

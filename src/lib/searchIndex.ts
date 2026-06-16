@@ -77,3 +77,5 @@ export function buildSearchIndex(): SearchEntry[] {
 
   return out;
 }
+
+export const searchIndex = buildSearchIndex();

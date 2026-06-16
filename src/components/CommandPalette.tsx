@@ -35,6 +35,7 @@ export function CommandPalette({ index }: { index: SearchEntry[] }) {
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
 
   const results = useMemo(() => {
     const query = q.trim().toLowerCase();
@@ -50,10 +51,19 @@ export function CommandPalette({ index }: { index: SearchEntry[] }) {
       .map((x) => x.e);
   }, [q, index]);
 
+  // index lookup by entry id (perf + correctness vs results.indexOf)
+  const indexById = useMemo(() => {
+    const m = new Map<string, number>();
+    results.forEach((r, i) => m.set(r.id, i));
+    return m;
+  }, [results]);
+
   const close = useCallback(() => {
     setOpen(false);
     setQ("");
     setActive(0);
+    restoreFocusRef.current?.focus();
+    restoreFocusRef.current = null;
   }, []);
 
   const go = useCallback(
@@ -86,6 +96,8 @@ export function CommandPalette({ index }: { index: SearchEntry[] }) {
 
   useEffect(() => {
     if (open) {
+      // remember what had focus so we can restore it on close
+      restoreFocusRef.current = document.activeElement as HTMLElement | null;
       setActive(0);
       // focus after paint
       requestAnimationFrame(() => inputRef.current?.focus());
@@ -132,13 +144,17 @@ export function CommandPalette({ index }: { index: SearchEntry[] }) {
             placeholder="Search exercises, weeks, guide…"
             className="w-full bg-transparent py-4 text-[15px] text-fg placeholder:text-faint focus:outline-none"
             aria-label="Search query"
+            role="combobox"
+            aria-expanded={true}
+            aria-controls="cmdk-list"
+            aria-activedescendant={results.length ? `cmdk-opt-${active}` : undefined}
           />
           <kbd className="hidden shrink-0 rounded border border-line-2 px-1.5 py-0.5 text-[10px] text-faint sm:block">
             ESC
           </kbd>
         </div>
 
-        <div ref={listRef} className="max-h-[52vh] overflow-y-auto py-2">
+        <div ref={listRef} id="cmdk-list" role="listbox" className="max-h-[52vh] overflow-y-auto py-2">
           {results.length === 0 ? (
             <p className="px-4 py-8 text-center text-sm text-muted">No matches for “{q}”.</p>
           ) : (
@@ -149,12 +165,15 @@ export function CommandPalette({ index }: { index: SearchEntry[] }) {
                 <div key={kind} className="mb-1">
                   <p className="eyebrow px-4 py-1.5 text-faint">{kind}</p>
                   {group.map((r) => {
-                    const idx = results.indexOf(r);
+                    const idx = indexById.get(r.id) ?? 0;
                     const Icon = KIND_ICON[r.kind];
                     const isActive = idx === active;
                     return (
                       <button
                         key={r.id}
+                        id={`cmdk-opt-${idx}`}
+                        role="option"
+                        aria-selected={isActive}
                         data-idx={idx}
                         onMouseMove={() => setActive(idx)}
                         onClick={() => go(r)}

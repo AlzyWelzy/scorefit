@@ -8,6 +8,13 @@
       "when": 1781543015349,
       "tag": "0000_mighty_angel",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1781598997798,
+      "tag": "0001_sturdy_abomination",
+      "breakpoints": true
     }
   ]
 }

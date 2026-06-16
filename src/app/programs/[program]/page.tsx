@@ -93,7 +93,7 @@ export default async function ProgramPage({
       <RevealGroup className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4" stagger={0.04}>
         {p.weeks.map((w) => {
           const deload = isDeload(w.number);
-          const intensity = (VOL[w.number - 1] - 55) / (108 - 55);
+          const intensity = ((VOL[w.number - 1] ?? 55) - 55) / (108 - 55);
           const ramping = w.number > 5;
           const tint = ramping ? "255,106,61" : "155,164,173";
           return (

@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ArrowRight, Info } from "lucide-react";
-import { getProgram, getWeek, blockFor, isDeload } from "@/lib/data";
+import { getProgram, getWeek, blockFor, isDeload, PROGRAM_IDS } from "@/lib/data";
 import { ExerciseRow } from "@/components/ExerciseCard";
 import { PrintButton } from "@/components/PrintButton";
 import { DayNav } from "@/components/motion/DayNav";
@@ -10,8 +10,10 @@ import { Reveal } from "@/components/motion/Reveal";
 
 export function generateStaticParams() {
   const out: { program: string; week: string }[] = [];
-  for (const program of ["beginner", "intermediate"]) {
-    for (let w = 1; w <= 12; w++) out.push({ program, week: String(w) });
+  for (const program of PROGRAM_IDS) {
+    const p = getProgram(program);
+    if (!p) continue;
+    for (const w of p.weeks) out.push({ program, week: String(w.number) });
   }
   return out;
 }
@@ -27,6 +29,7 @@ export async function generateMetadata({
   return {
     title: `${p.name} — Week ${week}`,
     description: `Week ${week} (${blockFor(Number(week))} block) of the ${p.name}: full training days with sets, reps, and RPE.`,
+    alternates: { canonical: `/programs/${program}/week/${week}` },
   };
 }
 
@@ -42,9 +45,10 @@ export default async function WeekPage({
   if (!p || !w) notFound();
 
   const deload = isDeload(weekNum);
+  const lastWeek = p.weeks.length;
   const prev = weekNum > 1 ? weekNum - 1 : null;
-  const next = weekNum < 12 ? weekNum + 1 : null;
-  const navDays = w.days.map((d) => ({ slug: d.slug, title: d.title.split(" ")[0], count: d.exercises.length }));
+  const next = weekNum < lastWeek ? weekNum + 1 : null;
+  const navDays = w.days.map((d) => ({ slug: d.slug, title: d.title.split(" ")[0] ?? d.title, count: d.exercises.length }));
 
   return (
     <div className="mx-auto max-w-6xl px-5 py-12">

@@ -8,3 +8,4 @@
 !.env.example
 /coverage
 next-env.d.ts
+/tsconfig.tsbuildinfo

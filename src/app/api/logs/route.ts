@@ -2,10 +2,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { getLogsForWeek, upsertSetLog } from "@/db/logs";
+import { PROGRAM_IDS } from "@/lib/data";
+import { sameOrigin } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
-const programEnum = z.enum(["beginner", "intermediate"]);
+const programEnum = z.enum(PROGRAM_IDS);
 
 export async function GET(req: Request) {
   const session = await auth();
@@ -35,6 +37,9 @@ const postSchema = z.object({
 });
 
 export async function POST(req: Request) {
+  if (!(await sameOrigin())) {
+    return NextResponse.json({ error: "Bad origin" }, { status: 403 });
+  }
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

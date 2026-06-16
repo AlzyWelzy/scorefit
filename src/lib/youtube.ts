@@ -2,7 +2,7 @@
 export function videoId(url?: string | null): string | null {
   if (!url) return null;
   const m = url.match(/(?:youtu\.be\/|v=|embed\/)([\w-]{11})/);
-  return m ? m[1] : null;
+  return m?.[1] ?? null;
 }
 
 export type ThumbQuality = "mq" | "hq" | "sd";

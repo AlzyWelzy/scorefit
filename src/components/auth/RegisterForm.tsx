@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
+import { Field } from "./Field";
 
 export function RegisterForm() {
   const router = useRouter();
@@ -22,20 +23,29 @@ export function RegisterForm() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: name || undefined, email, password }),
     });
+
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
       setBusy(false);
+      if (res.status === 429) {
+        setError("Too many attempts. Please try again in a few minutes.");
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
       setError(data.error ?? "Could not create account.");
       return;
     }
-    // Auto sign-in after successful registration.
+
+    // The register API is enumeration-safe: it always returns { ok: true }.
+    // Try to sign in — succeeds for genuinely new accounts (which land on
+    // email verification), fails if the email already existed with a
+    // different password (send them to login instead).
     const signin = await signIn("credentials", { email, password, redirect: false });
     setBusy(false);
     if (signin?.error) {
       router.push("/login");
       return;
     }
-    router.push("/log");
+    router.push("/verify-email");
     router.refresh();
   }
 
@@ -68,39 +78,5 @@ export function RegisterForm() {
         </Link>
       </p>
     </form>
-  );
-}
-
-function Field({
-  label,
-  type,
-  value,
-  onChange,
-  autoComplete,
-  hint,
-  required = true,
-}: {
-  label: string;
-  type: string;
-  value: string;
-  onChange: (v: string) => void;
-  autoComplete?: string;
-  hint?: string;
-  required?: boolean;
-}) {
-  return (
-    <label className="block">
-      <span className="eyebrow mb-1 block">{label}</span>
-      <input
-        type={type}
-        value={value}
-        autoComplete={autoComplete}
-        onChange={(e) => onChange(e.target.value)}
-        required={required}
-        minLength={type === "password" ? 8 : undefined}
-        className="w-full rounded-lg border border-line bg-bg px-3 py-2.5 text-fg focus:border-accent focus:outline-none"
-      />
-      {hint && <span className="mt-1 block text-xs text-faint">{hint}</span>}
-    </label>
   );
 }

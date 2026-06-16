@@ -10,8 +10,29 @@ export const users = pgTable("users", {
   name: text("name"),
   image: text("image"),
   passwordHash: text("password_hash"),
+  // Preferred weight unit for the logger / progress / plate calculator.
+  unit: text("unit").notNull().default("kg"), // "kg" | "lb"
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// Short-lived hashed tokens for email verification (OTP) and password reset.
+// We store a SHA-256 hash of the code, never the code itself, so a DB leak
+// can't be used to verify/reset. One active token per (user, purpose).
+export const verificationTokens = pgTable(
+  "verification_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    purpose: text("purpose").notNull(), // "email_verify" | "password_reset"
+    codeHash: text("code_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique("uq_token_user_purpose").on(t.userId, t.purpose)],
+);
 
 // One row per logged working set. Uniqueness on the prescription coordinates
 // means writes upsert rather than duplicate.
@@ -22,7 +43,7 @@ export const workoutLogs = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    program: text("program").notNull(), // "beginner" | "intermediate"
+    program: text("program", { enum: ["beginner", "intermediate"] }).notNull(),
     week: integer("week").notNull(),
     daySlug: text("day_slug").notNull(),
     exerciseSlug: text("exercise_slug").notNull(),
@@ -42,3 +63,4 @@ export const workoutLogs = pgTable(
 export type User = typeof users.$inferSelect;
 export type WorkoutLog = typeof workoutLogs.$inferSelect;
 export type NewWorkoutLog = typeof workoutLogs.$inferInsert;
+export type VerificationToken = typeof verificationTokens.$inferSelect;

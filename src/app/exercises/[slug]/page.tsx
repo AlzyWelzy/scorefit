@@ -7,6 +7,7 @@ import { archetypeFor, ARCHETYPE_LABEL } from "@/lib/movement";
 import { YouTubeFacade } from "@/components/YouTubeFacade";
 import { Stat, RpeBar } from "@/components/Readout";
 import { Reveal } from "@/components/motion/Reveal";
+import { videoId, thumbUrl } from "@/lib/youtube";
 
 export function generateStaticParams() {
   return exerciseLibrary.map((e) => ({ slug: e.slug }));
@@ -40,8 +41,27 @@ export default async function ExercisePage({
   const tech = ex.technique && !/^none/i.test(ex.technique) ? ex.technique : null;
   const programs = Array.from(new Set(ex.appearsIn.map((a) => a.program))) as ProgramId[];
 
+  const vid = videoId(ex.demo);
+  const videoLd = vid
+    ? {
+        "@context": "https://schema.org",
+        "@type": "VideoObject",
+        name: ex.name,
+        description: `${ex.name} — demonstration, coaching cues, and substitutions in the ScoreFit programs.`,
+        thumbnailUrl: thumbUrl(ex.demo, "hq"),
+        contentUrl: `https://www.youtube.com/watch?v=${vid}`,
+        embedUrl: `https://www.youtube.com/embed/${vid}`,
+      }
+    : null;
+
   return (
     <div className="mx-auto max-w-5xl px-5 py-14">
+      {videoLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(videoLd) }}
+        />
+      )}
       <Reveal>
         <Link href="/exercises" className="eyebrow hover:text-fg">← Exercise library</Link>
         <div className="mt-3 flex flex-wrap items-center gap-2">

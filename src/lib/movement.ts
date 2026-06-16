@@ -22,7 +22,7 @@ const RULES: [RegExp, Archetype][] = [
   [/(rdl|hyperextension|deadlift|hip hinge)/i, "hinge"],
   [/(squat|leg press|lunge|leg extension|hack)/i, "squat"],
   [/(lateral raise|rear delt|flye|crossover|pec deck|shrug|abduction|adduction)/i, "raise"],
-  [/(triceps|pressdown|kickback|skull|extension)/i, "triceps"],
+  [/(triceps|press-?down|push-?down|pressdown|kickback|skull|extension)/i, "triceps"],
   [/(curl)/i, "curl"],
   [/(pull-?up|pulldown|row|pull)/i, "pull"],
   [/(press|bench|push)/i, "press"],
@@ -55,7 +55,7 @@ export function equipmentFor(name: string): Equipment {
   if (n.includes("smith")) return "Smith";
   if (/\bpull-?up\b|\bchin-?up\b|\bdip\b|hyperextension|push-?up/.test(n)) return "Bodyweight";
   if (/machine|pec deck|leg press|hack|pendulum|hip abduction|hip thrust machine/.test(n)) return "Machine";
-  if (/cable|rope|pulldown|pull-down|crossover|pushdown|push-down|face pull/.test(n)) return "Cable";
+  if (/cable|rope|pulldown|pull-down|crossover|pushdown|push-down|pressdown|press-down|face pull/.test(n)) return "Cable";
   if (/barbell|\bbb\b|ez-?bar|pendlay|deadlift|romanian/.test(n)) return "Barbell";
   if (/dumbbell|\bdb\b/.test(n)) return "Dumbbell";
   return "Machine";

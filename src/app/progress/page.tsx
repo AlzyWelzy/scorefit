@@ -2,18 +2,16 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { getProgram, PROGRAM_META, type ProgramId } from "@/lib/data";
+import { getProgramOrThrow, isProgramId, parseSets, PROGRAM_META, type ProgramId } from "@/lib/data";
 import { getLogsForProgram } from "@/db/logs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = { title: "Progress" };
+export const metadata: Metadata = { title: "Progress", alternates: { canonical: "/progress" } };
 
-function parseSets(v: string | null | undefined): number {
-  const n = parseInt((v ?? "1").trim(), 10);
-  return Number.isFinite(n) && n > 0 ? Math.min(n, 12) : 1;
-}
+// Epley estimated 1-rep max.
+const e1rm = (weight: number, reps: number) => weight * (1 + reps / 30);
 
 export default async function ProgressPage({
   searchParams,
@@ -24,28 +22,60 @@ export default async function ProgressPage({
   if (!session?.user?.id) redirect("/login?callbackUrl=/progress");
 
   const sp = await searchParams;
-  const program: ProgramId = sp.program === "intermediate" ? "intermediate" : "beginner";
-  const prog = getProgram(program)!;
+  const program: ProgramId = sp.program && isProgramId(sp.program) ? sp.program : "beginner";
+  const prog = getProgramOrThrow(program);
+  const unit = session.user.unit;
   const logs = await getLogsForProgram(session.user.id, program);
 
+  // Valid prescription coordinates per week, so stale logs (after a program
+  // edit) don't push "done" above "prescribed".
   const prescribed = new Map<number, number>();
+  const validCoords = new Set<string>();
   for (const w of prog.weeks) {
     let count = 0;
-    for (const d of w.days) for (const ex of d.exercises) count += parseSets(ex.workingSets);
+    for (const d of w.days)
+      for (const ex of d.exercises) {
+        const sets = parseSets(ex.workingSets);
+        count += sets;
+        for (let i = 1; i <= sets; i++) validCoords.add(`${w.number}|${d.slug}|${ex.slug}|${i}`);
+      }
     prescribed.set(w.number, count);
   }
 
   const done = new Map<number, number>();
   const tonnage = new Map<number, number>();
+  // Best e1RM per exercise across the program → PR list + trend.
+  const bestByExercise = new Map<string, { e1rm: number; weight: number; reps: number; week: number }>();
+
   for (const l of logs) {
-    if (l.completed) done.set(l.week, (done.get(l.week) ?? 0) + 1);
+    if (!l.completed) continue;
+    const inProgram = validCoords.has(`${l.week}|${l.daySlug}|${l.exerciseSlug}|${l.setIndex}`);
+    if (inProgram) done.set(l.week, (done.get(l.week) ?? 0) + 1);
     if (l.weight != null && l.reps != null) {
       tonnage.set(l.week, (tonnage.get(l.week) ?? 0) + l.weight * l.reps);
+      if (l.reps > 0 && l.weight > 0) {
+        const est = e1rm(l.weight, l.reps);
+        const cur = bestByExercise.get(l.exerciseSlug);
+        if (!cur || est > cur.e1rm) {
+          bestByExercise.set(l.exerciseSlug, { e1rm: est, weight: l.weight, reps: l.reps, week: l.week });
+        }
+      }
     }
   }
+
   const maxTonnage = Math.max(1, ...Array.from(tonnage.values()));
   const totalDone = Array.from(done.values()).reduce((a, b) => a + b, 0);
   const totalPrescribed = Array.from(prescribed.values()).reduce((a, b) => a + b, 0);
+  const totalTonnage = Array.from(tonnage.values()).reduce((a, b) => a + b, 0);
+
+  // Map slug → display name for the PR list.
+  const nameBySlug = new Map<string, string>();
+  for (const w of prog.weeks) for (const d of w.days) for (const ex of d.exercises) nameBySlug.set(ex.slug, ex.name);
+
+  const prs = Array.from(bestByExercise.entries())
+    .map(([slug, b]) => ({ name: nameBySlug.get(slug) ?? slug, ...b }))
+    .sort((a, b) => b.e1rm - a.e1rm)
+    .slice(0, 8);
 
   return (
     <div className="mx-auto max-w-3xl px-5 py-12">
@@ -61,7 +91,7 @@ export default async function ProgressPage({
               href={`/progress?program=${p}`}
               className={`px-3 py-1.5 ${p === program ? "bg-accent text-bg" : "text-muted hover:text-fg"}`}
             >
-              {p === "beginner" ? "Beginner" : "Int / Adv"}
+              {PROGRAM_META[p].shortLabel}
             </Link>
           ))}
         </div>
@@ -70,10 +100,7 @@ export default async function ProgressPage({
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Stat label="sets completed" value={`${totalDone}`} />
         <Stat label="of prescribed" value={`${totalPrescribed}`} />
-        <Stat
-          label="total tonnage"
-          value={Array.from(tonnage.values()).reduce((a, b) => a + b, 0).toLocaleString()}
-        />
+        <Stat label={`total tonnage (${unit})`} value={totalTonnage.toLocaleString()} />
       </div>
 
       {logs.length === 0 ? (
@@ -81,35 +108,61 @@ export default async function ProgressPage({
           No sets logged yet. <Link href="/log" className="text-accent hover:underline">Start logging →</Link>
         </p>
       ) : (
-        <div className="mt-8">
-          <h2 className="eyebrow mb-3">Tonnage by week <span className="text-faint">(completed weight × reps)</span></h2>
-          <div className="space-y-2.5">
-            {prog.weeks.map((w) => {
-              const n = w.number;
-              const t = tonnage.get(n) ?? 0;
-              const d = done.get(n) ?? 0;
-              const p = prescribed.get(n) ?? 0;
-              const pct = Math.round((t / maxTonnage) * 100);
-              return (
-                <div key={n} className="flex items-center gap-3">
-                  <span className="num w-12 shrink-0 text-xs text-faint">W{n}</span>
-                  <div className="h-7 flex-1 overflow-hidden rounded-md bg-surface-2">
-                    <div
-                      className="flex h-full items-center justify-end rounded-md bg-data/25 px-2"
-                      style={{ width: `${Math.max(pct, t > 0 ? 6 : 0)}%` }}
-                    >
-                      {t > 0 && <span className="num text-[11px] text-data">{t.toLocaleString()}</span>}
+        <>
+          <div className="mt-8">
+            <h2 className="eyebrow mb-3">
+              Tonnage by week <span className="text-faint">(completed weight × reps, {unit})</span>
+            </h2>
+            <div className="space-y-2.5">
+              {prog.weeks.map((w) => {
+                const n = w.number;
+                const t = tonnage.get(n) ?? 0;
+                const d = done.get(n) ?? 0;
+                const p = prescribed.get(n) ?? 0;
+                const pct = Math.round((t / maxTonnage) * 100);
+                return (
+                  <div key={n} className="flex items-center gap-3">
+                    <span className="num w-12 shrink-0 text-xs text-faint">W{n}</span>
+                    <div className="h-7 flex-1 overflow-hidden rounded-md bg-surface-2">
+                      <div
+                        className="flex h-full items-center justify-end rounded-md bg-data/25 px-2"
+                        style={{ width: `${Math.max(pct, t > 0 ? 6 : 0)}%` }}
+                      >
+                        {t > 0 && <span className="num text-[11px] text-data">{t.toLocaleString()}</span>}
+                      </div>
                     </div>
+                    <span className="num w-14 shrink-0 text-right text-xs text-muted">
+                      {Math.min(d, p)}/{p}
+                    </span>
                   </div>
-                  <span className="num w-14 shrink-0 text-right text-xs text-muted">
-                    {d}/{p}
-                  </span>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
+            <p className="mt-3 text-right text-xs text-faint">sets done / prescribed →</p>
           </div>
-          <p className="mt-3 text-right text-xs text-faint">sets done / prescribed →</p>
-        </div>
+
+          {prs.length > 0 && (
+            <div className="mt-10">
+              <h2 className="eyebrow mb-3">
+                Estimated 1RM by exercise <span className="text-faint">(best set, Epley · {unit})</span>
+              </h2>
+              <div className="overflow-hidden rounded-card border border-line">
+                {prs.map((pr) => (
+                  <div
+                    key={pr.name}
+                    className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5 last:border-0"
+                  >
+                    <span className="truncate text-sm text-fg">{pr.name}</span>
+                    <span className="num shrink-0 text-xs text-muted">
+                      {pr.weight}×{pr.reps} · W{pr.week} ·{" "}
+                      <span className="text-data">e1RM {Math.round(pr.e1rm)}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

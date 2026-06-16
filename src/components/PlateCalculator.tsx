@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 
 type Unit = "kg" | "lb";
 
-const BAR: Record<Unit, number[]> = { kg: [20, 15, 10], lb: [45, 35, 25] };
+const BAR: Record<Unit, [number, ...number[]]> = { kg: [20, 15, 10], lb: [45, 35, 25] };
 const PLATES: Record<Unit, number[]> = {
   kg: [25, 20, 15, 10, 5, 2.5, 1.25],
   lb: [45, 35, 25, 10, 5, 2.5],

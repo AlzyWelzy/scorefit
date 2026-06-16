@@ -17,7 +17,7 @@ export function SiteHeader() {
     <header className="sticky top-0 z-50 border-b border-line bg-bg/80 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5">
         <Logo size={25} />
-        <nav className="hidden items-center gap-0.5 md:flex">
+        <nav aria-label="Primary" className="hidden items-center gap-0.5 md:flex">
           {NAV.map((n) => (
             <Link
               key={n.href}
@@ -39,7 +39,7 @@ export function SiteHeader() {
           </Link>
         </div>
       </div>
-      <nav className="flex items-center gap-0.5 overflow-x-auto border-t border-line px-3 py-2 md:hidden">
+      <nav aria-label="Primary mobile" className="flex items-center gap-0.5 overflow-x-auto border-t border-line px-3 py-2 md:hidden">
         {NAV.map((n) => (
           <Link
             key={n.href}

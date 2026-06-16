@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { guidebook, getGuideSection } from "@/lib/data";
+import { guidebook, getGuideSection, getGuideSectionWithIndex } from "@/lib/data";
 import { Markdown } from "@/components/Markdown";
 import { Reveal } from "@/components/motion/Reveal";
 
@@ -27,9 +27,9 @@ export default async function GuideSectionPage({
   params: Promise<{ section: string }>;
 }) {
   const { section } = await params;
-  const idx = guidebook.sections.findIndex((s) => s.slug === section);
-  const s = guidebook.sections[idx];
-  if (!s) notFound();
+  const found = getGuideSectionWithIndex(section);
+  if (!found) notFound();
+  const { section: s, index: idx } = found;
   const prev = guidebook.sections[idx - 1];
   const next = guidebook.sections[idx + 1];
 

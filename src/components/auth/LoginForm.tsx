@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
+import { Field } from "./Field";
+import { safeInternalPath } from "@/lib/safeRedirect";
 
 export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
   const router = useRouter();
@@ -16,22 +18,33 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const res = await signIn("credentials", { email, password, redirect: false });
-    setBusy(false);
-    if (res?.error) {
-      setError("Invalid email or password.");
-      return;
+    try {
+      const res = await signIn("credentials", { email, password, redirect: false });
+      setBusy(false);
+      if (res?.error) {
+        setError("Invalid email or password.");
+        return;
+      }
+      // Re-validate the redirect target on the client too (defence in depth).
+      router.push(safeInternalPath(callbackUrl, "/log"));
+      router.refresh();
+    } catch {
+      setBusy(false);
+      setError("Something went wrong. Check your connection and try again.");
     }
-    router.push(callbackUrl);
-    router.refresh();
   }
 
   return (
     <form onSubmit={submit} className="space-y-4">
       {error && (
-        <p className="rounded-lg border border-hard/30 bg-hard/10 px-3 py-2 text-sm text-hard">{error}</p>
+        <p
+          role="alert"
+          className="rounded-lg border border-hard/30 bg-hard/10 px-3 py-2 text-sm text-hard"
+        >
+          {error}
+        </p>
       )}
-      <Field label="Email" type="email" value={email} onChange={setEmail} autoComplete="email" />
+      <Field label="Email" type="email" value={email} onChange={setEmail} autoComplete="email" inputMode="email" />
       <Field
         label="Password"
         type="password"
@@ -39,6 +52,11 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
         onChange={setPassword}
         autoComplete="current-password"
       />
+      <div className="text-right">
+        <Link href="/forgot-password" className="text-xs text-muted hover:text-fg">
+          Forgot password?
+        </Link>
+      </div>
       <button
         type="submit"
         disabled={busy}
@@ -53,33 +71,5 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
         </Link>
       </p>
     </form>
-  );
-}
-
-function Field({
-  label,
-  type,
-  value,
-  onChange,
-  autoComplete,
-}: {
-  label: string;
-  type: string;
-  value: string;
-  onChange: (v: string) => void;
-  autoComplete?: string;
-}) {
-  return (
-    <label className="block">
-      <span className="eyebrow mb-1 block">{label}</span>
-      <input
-        type={type}
-        value={value}
-        autoComplete={autoComplete}
-        onChange={(e) => onChange(e.target.value)}
-        required
-        className="w-full rounded-lg border border-line bg-bg px-3 py-2.5 text-fg focus:border-accent focus:outline-none"
-      />
-    </label>
   );
 }
