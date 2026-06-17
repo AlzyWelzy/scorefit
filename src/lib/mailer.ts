@@ -63,7 +63,7 @@ export async function sendMail(opts: { to: string; subject: string; html: string
 }
 
 const wrap = (title: string, body: string) => `
-  <div style="font-family:ui-sans-serif,system-ui,sans-serif;max-width:480px;margin:0 auto;padding:24px;background:#0b0d0f;color:#eceff1;border-radius:16px">
+  <div style="font-family:ui-sans-serif,system-ui,sans-serif;max-width:480px;margin:0 auto;padding:24px;background:#07090c;color:#f1f4f7;border-radius:16px">
     <p style="font-family:ui-monospace,monospace;letter-spacing:.16em;text-transform:uppercase;font-size:11px;color:#ff6a3d;margin:0 0 16px">ScoreFit</p>
     <h1 style="font-size:20px;margin:0 0 12px">${title}</h1>
     ${body}

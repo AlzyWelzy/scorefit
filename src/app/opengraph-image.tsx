@@ -15,7 +15,7 @@ export default async function OpengraphImage() {
           display: "flex",
           flexDirection: "column",
           justifyContent: "center",
-          background: "#0b0d0f",
+          background: "#07090c",
           padding: "80px",
           fontFamily:
             "ui-monospace, 'JetBrains Mono', 'SF Mono', Menlo, monospace",

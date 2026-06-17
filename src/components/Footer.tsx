@@ -14,8 +14,8 @@ export function Footer() {
           </p>
         </div>
         <FooterCol title="Train" links={[["/programs/beginner", "Beginner"], ["/programs/intermediate", "Intermediate / Advanced"], ["/exercises", "Exercise library"]]} />
-        <FooterCol title="Learn" links={[["/guidebook", "Guidebook"], ["/guidebook/the-6-training-principles", "Training principles"], ["/guidebook/bodybuilding-nutrition", "Nutrition"], ["/guidebook/faq", "FAQ"]]} />
-        <FooterCol title="Reference" links={[["/guidebook/muscle-anatomy-how-each-muscle-is-trained", "Anatomy"], ["/guidebook/bodybuilding-supplements", "Supplements"], ["/guidebook/references-clickable-in-the-original-guidebook", "References"]]} />
+        <FooterCol title="Learn" links={[["/guidebook", "Guidebook"], ["/guidebook/the-6-training-principles", "Training principles"], ["/guidebook/warming-up-properly", "Warming up"], ["/guidebook/bodybuilding-nutrition", "Nutrition"], ["/guidebook/sleep-and-recovery", "Sleep & recovery"], ["/guidebook/faq", "FAQ"]]} />
+        <FooterCol title="Reference" links={[["/guidebook/muscle-anatomy-how-each-muscle-is-trained", "Anatomy"], ["/guidebook/bodybuilding-supplements", "Supplements"], ["/guidebook/glossary-key-terms", "Glossary"], ["/guidebook/references-clickable-in-the-original-guidebook", "References"]]} />
       </div>
       <div className="border-t border-line">
         <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-2 px-5 py-5 text-xs text-faint sm:flex-row sm:items-center">
