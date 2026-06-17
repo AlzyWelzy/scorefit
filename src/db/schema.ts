@@ -1,10 +1,17 @@
 import { pgTable, uuid, text, integer, real, boolean, timestamp, unique, index } from "drizzle-orm/pg-core";
+import { newId } from "../lib/ids";
+
+// Every `id` is a ULID rendered into a native Postgres `uuid` column (16-byte,
+// natively indexed) and generated app-side via newId() — see src/lib/ids.ts.
+// ULIDs are time-ordered, so primary keys sort by creation and inserts stay
+// local in the index. There is no DB-side DEFAULT; ids are minted by Drizzle's
+// $defaultFn on insert, so all writes must go through the ORM (they do).
 
 // Users. Shaped to be Auth.js-adapter-compatible (id/email/emailVerified/name/image)
 // so adding OAuth later is a config change, not a migration rewrite.
 // passwordHash is null for users that would later sign in via OAuth only.
 export const users = pgTable("users", {
-  id: uuid("id").primaryKey().defaultRandom(),
+  id: uuid("id").primaryKey().$defaultFn(newId),
   email: text("email").notNull().unique(),
   emailVerified: timestamp("email_verified", { withTimezone: true }),
   name: text("name"),
@@ -34,7 +41,7 @@ export const users = pgTable("users", {
 export const backupCodes = pgTable(
   "backup_codes",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: uuid("id").primaryKey().$defaultFn(newId),
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
@@ -50,7 +57,7 @@ export const backupCodes = pgTable(
 export const verificationTokens = pgTable(
   "verification_tokens",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: uuid("id").primaryKey().$defaultFn(newId),
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
@@ -68,7 +75,7 @@ export const verificationTokens = pgTable(
 export const workoutLogs = pgTable(
   "workout_logs",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: uuid("id").primaryKey().$defaultFn(newId),
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
