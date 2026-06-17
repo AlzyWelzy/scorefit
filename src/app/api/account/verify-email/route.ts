@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
-import { getUserById, markEmailVerified, applyPendingEmail, setPendingEmail } from "@/db/users";
+import {
+  getUserById,
+  markEmailVerified,
+  applyPendingEmail,
+  setPendingEmail,
+  emailExists,
+} from "@/db/users";
 import { issueToken, verifyToken, consumeToken, type VerifyResult } from "@/db/tokens";
 import { sendVerificationCode } from "@/lib/mailer";
 import { rateLimit, clientIp, sameOrigin } from "@/lib/rateLimit";
@@ -17,9 +23,7 @@ export async function POST(req: Request) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const ip = await clientIp();
-  const rl = await rateLimit("verify-email", `${ip}:${session.user.id}`, 10, 10 * 60 * 1000, {
-    failClosed: true,
-  });
+  const rl = await rateLimit("verify-email", `${ip}:${session.user.id}`, 10, 10 * 60 * 1000);
   if (!rl.ok) {
     return NextResponse.json({ error: "Too many attempts. Try again later." }, { status: 429 });
   }
@@ -40,20 +44,32 @@ export async function POST(req: Request) {
   //    verification from ever applying a stale/abandoned pending change.
   let change: VerifyResult | null = null;
   if (user.pendingEmail) {
-    change = await verifyToken(user.id, "email_change", code);
+    // Read-only peek: don't consume (so a failed apply doesn't burn the code)
+    // and don't count attempts (so trying the CURRENT-email code here can't lock
+    // the email_change token — the two purposes stay independent). Brute-force of
+    // the change code is bounded by the verify-email + email-change rate limits.
+    change = await verifyToken(user.id, "email_change", code, { consume: false, countAttempts: false });
     if (change.ok) {
+      let applied: boolean;
       try {
-        await applyPendingEmail(user.id, user.pendingEmail);
+        applied = await applyPendingEmail(user.id, user.pendingEmail);
       } catch (err) {
         if ((err as { code?: string }).code === "23505") {
-          // The new address was claimed by someone else in the race.
+          // The new address was claimed by someone else in the race — the change
+          // can never succeed, so drop it and consume the now-useless token.
           await setPendingEmail(user.id, null);
+          await consumeToken(user.id, "email_change");
           return NextResponse.json({ error: "That email is no longer available." }, { status: 409 });
         }
-        // Transient failure — keep the staged change so the user can retry.
+        // Transient failure — do NOT consume the token, so the same code can retry.
         console.error("[verify-email] applyPendingEmail failed", err);
         return NextResponse.json({ error: "Could not update your email. Try again." }, { status: 500 });
       }
+      if (!applied) {
+        // pendingEmail was changed/cleared concurrently — don't consume; retry.
+        return NextResponse.json({ error: "Please try again." }, { status: 409 });
+      }
+      await consumeToken(user.id, "email_change");
       return NextResponse.json({ ok: true, emailChanged: true }, { status: 200 });
     }
     // Stale/abandoned change → drop the pending so it can't linger.
@@ -99,9 +115,7 @@ export async function PUT() {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const ip = await clientIp();
-  const rl = await rateLimit("resend-verify", `${ip}:${session.user.id}`, 4, 10 * 60 * 1000, {
-    failClosed: true,
-  });
+  const rl = await rateLimit("resend-verify", `${ip}:${session.user.id}`, 4, 10 * 60 * 1000);
   if (!rl.ok) {
     return NextResponse.json({ error: "Please wait before requesting another code." }, { status: 429 });
   }
@@ -120,7 +134,12 @@ export async function PUT() {
 
   try {
     const code = await issueToken(user.id, purpose);
-    await sendVerificationCode(target, code);
+    // For an email change, only actually send when the new address is free —
+    // never message the existing owner of a taken address. The response is
+    // identical either way, so it doesn't leak whether the address is registered.
+    if (!changing || !(await emailExists(target))) {
+      await sendVerificationCode(target, code);
+    }
   } catch (err) {
     console.error("[verify-email] resend failed", err);
     return NextResponse.json({ error: "Could not send the email. Try again later." }, { status: 502 });

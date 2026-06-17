@@ -2,13 +2,10 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { users } from "@/db/schema";
-import { getUserById, setName, setPendingEmail, setPasswordHash, setUnit } from "@/db/users";
+import { getUserById, setName, setPendingEmail, setPasswordHash, setUnit, emailExists } from "@/db/users";
 import { issueToken } from "@/db/tokens";
 import { sendVerificationCode } from "@/lib/mailer";
-import { sameOrigin } from "@/lib/rateLimit";
-import { eq } from "drizzle-orm";
+import { sameOrigin, rateLimit, clientIp } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
@@ -58,26 +55,31 @@ export async function PATCH(req: Request) {
   let emailChanged = false;
   if (email !== undefined && email.toLowerCase() !== user.email) {
     const target = email.toLowerCase();
-    // Report the same outcome whether or not the address is already registered,
-    // so an authenticated user can't enumerate accounts via this endpoint.
+    // Rate-limit changes: bounds verification-email volume to arbitrary addresses
+    // and the rate at which the (masked) endpoint can be probed.
+    const ip = await clientIp();
+    const rl = await rateLimit("email-change", `${ip}:${user.id}`, 5, 15 * 60 * 1000);
+    if (!rl.ok) {
+      return NextResponse.json({ error: "Too many changes. Try again later." }, { status: 429 });
+    }
+    // Stage the change as pending — the current verified email stays in place
+    // until the code emailed to the NEW address is confirmed (verify-email applies
+    // the swap). Stage + issue the token IDENTICALLY whether or not the address is
+    // already registered, so neither the response nor downstream pendingEmail-
+    // derived behavior leaks account existence. Uniqueness is enforced atomically
+    // at apply time (applyPendingEmail throws on the unique violation).
     emailChanged = true;
-    const taken = await db.select({ id: users.id }).from(users).where(eq(users.email, target)).limit(1);
-    if (taken.length === 0) {
-      // Stage the change as pending — the current verified email stays in place
-      // until the code we email to the NEW address is confirmed (verify-email
-      // applies the swap). This prevents an unverified/typo/attacker address
-      // from taking over the account before it proves control.
-      await setPendingEmail(user.id, target);
+    await setPendingEmail(user.id, target);
+    const code = await issueToken(user.id, "email_change");
+    if (!(await emailExists(target))) {
+      // Only actually email the code when the address is free — never message the
+      // existing owner of a taken address.
       try {
-        // Distinct "email_change" token sent to the NEW address — kept separate
-        // from "email_verify" so a current-email verification can't apply it.
-        const code = await issueToken(user.id, "email_change");
         await sendVerificationCode(target, code);
       } catch (err) {
         console.error("[account] verification email failed", err);
       }
     }
-    // If taken: silently do nothing, but still report success (masking).
   }
 
   return NextResponse.json({ ok: true, emailChanged }, { status: 200 });
