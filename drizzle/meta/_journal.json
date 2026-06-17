@@ -22,6 +22,13 @@
       "when": 1781715478924,
       "tag": "0002_opposite_marvel_apes",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1781718951300,
+      "tag": "0003_groovy_jubilee",
+      "breakpoints": true
     }
   ]
 }

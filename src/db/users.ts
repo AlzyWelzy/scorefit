@@ -101,6 +101,21 @@ export async function setTimezone(id: string, timezone: string): Promise<void> {
   await db.update(users).set({ timezone }).where(eq(users.id, id));
 }
 
+/** Update the (gated) leaderboard consent profile. Opting in stamps acceptedTermsAt. */
+export async function updateLeaderboardProfile(
+  id: string,
+  patch: { optIn?: boolean; displayName?: string | null; birthYear?: number },
+): Promise<void> {
+  const set: Partial<typeof users.$inferInsert> = {};
+  if (patch.displayName !== undefined) set.displayName = patch.displayName;
+  if (patch.birthYear !== undefined) set.birthYear = patch.birthYear;
+  if (patch.optIn !== undefined) {
+    set.leaderboardOptIn = patch.optIn;
+    if (patch.optIn) set.acceptedTermsAt = new Date();
+  }
+  if (Object.keys(set).length) await db.update(users).set(set).where(eq(users.id, id));
+}
+
 export async function markEmailVerified(id: string): Promise<void> {
   await db.update(users).set({ emailVerified: new Date() }).where(eq(users.id, id));
 }

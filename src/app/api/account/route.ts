@@ -2,11 +2,12 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { auth } from "@/auth";
-import { getUserById, setName, setPendingEmail, setPasswordHash, setUnit, setTimezone, emailExists } from "@/db/users";
+import { getUserById, setName, setPendingEmail, setPasswordHash, setUnit, setTimezone, updateLeaderboardProfile, emailExists } from "@/db/users";
 import { issueToken } from "@/db/tokens";
 import { sendVerificationCode } from "@/lib/mailer";
 import { sameOrigin, rateLimit, clientIp } from "@/lib/rateLimit";
 import { isValidTimeZone } from "@/lib/time";
+import { MIN_AGE } from "@/lib/flags";
 
 export const runtime = "nodejs";
 
@@ -17,6 +18,10 @@ const patchSchema = z.object({
   // IANA timezone, captured client-side and refined server-side (must be a real
   // zone). Non-sensitive; used to bucket sessions/streaks into the local day.
   timezone: z.string().min(1).max(64).optional(),
+  // (Gated) leaderboard consent profile.
+  leaderboardOptIn: z.boolean().optional(),
+  displayName: z.string().trim().min(2).max(24).nullable().optional(),
+  birthYear: z.number().int().min(1900).max(2100).optional(),
   // Required only when changing email or password.
   currentPassword: z.string().optional(),
   newPassword: z.string().min(8).optional(),
@@ -35,12 +40,23 @@ export async function PATCH(req: Request) {
       { status: 400 },
     );
   }
-  const { name, email, unit, timezone, currentPassword, newPassword } = parsed.data;
+  const { name, email, unit, timezone, leaderboardOptIn, displayName, birthYear, currentPassword, newPassword } = parsed.data;
   if (timezone !== undefined && !isValidTimeZone(timezone)) {
     return NextResponse.json({ error: "Invalid timezone." }, { status: 400 });
   }
   const user = await getUserById(session.user.id);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // Age gate: joining the leaderboards (a public surface) requires an age >= MIN_AGE.
+  if (leaderboardOptIn === true) {
+    const by = birthYear ?? user.birthYear ?? undefined;
+    if (!by) {
+      return NextResponse.json({ error: "Birth year is required to join leaderboards." }, { status: 400 });
+    }
+    if (new Date().getUTCFullYear() - by < MIN_AGE) {
+      return NextResponse.json({ error: `You must be at least ${MIN_AGE} to join leaderboards.` }, { status: 403 });
+    }
+  }
 
   // Sensitive changes (email / password) require the current password.
   const sensitive = email !== undefined || newPassword !== undefined;
@@ -55,6 +71,9 @@ export async function PATCH(req: Request) {
   if (name !== undefined) await setName(user.id, name);
   if (unit !== undefined) await setUnit(user.id, unit);
   if (timezone !== undefined && timezone !== user.timezone) await setTimezone(user.id, timezone);
+  if (leaderboardOptIn !== undefined || displayName !== undefined || birthYear !== undefined) {
+    await updateLeaderboardProfile(user.id, { optIn: leaderboardOptIn, displayName, birthYear });
+  }
 
   if (newPassword !== undefined) {
     await setPasswordHash(user.id, await bcrypt.hash(newPassword, 12));

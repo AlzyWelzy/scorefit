@@ -40,6 +40,14 @@ export const users = pgTable("users", {
   timezone: text("timezone").notNull().default("UTC"),
   weekStartsOn: integer("week_starts_on").notNull().default(1),
   goalSessionsPerWeek: integer("goal_sessions_per_week"),
+  // Minimal PII for the (opt-in, gated) leaderboards: birth YEAR only (age gate +
+  // age cohort, never full DOB), a public vanity handle distinct from the auth name,
+  // an explicit opt-in (default off), and a consent timestamp. No board surfaces a
+  // user until leaderboardOptIn is true AND the feature flag is enabled.
+  birthYear: integer("birth_year"),
+  displayName: text("display_name"),
+  leaderboardOptIn: boolean("leaderboard_opt_in").notNull().default(false),
+  acceptedTermsAt: timestamp("accepted_terms_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
