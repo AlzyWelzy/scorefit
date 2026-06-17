@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash, randomBytes } from "crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { users, backupCodes } from "@/db/schema";
 
@@ -23,9 +23,17 @@ export async function enableTwoFactor(userId: string, method: TwoFactorMethod): 
 }
 
 export async function disableTwoFactor(userId: string): Promise<void> {
+  // Bump tokenVersion: disabling 2FA is a security-lowering change, so propagate the
+  // existing eventual-revocation path to invalidate sibling sessions.
   await db
     .update(users)
-    .set({ twoFactorEnabled: false, twoFactorMethod: null, totpSecret: null, lastTotpStep: null })
+    .set({
+      twoFactorEnabled: false,
+      twoFactorMethod: null,
+      totpSecret: null,
+      lastTotpStep: null,
+      tokenVersion: sql`${users.tokenVersion} + 1`,
+    })
     .where(eq(users.id, userId));
   await db.delete(backupCodes).where(eq(backupCodes.userId, userId));
 }

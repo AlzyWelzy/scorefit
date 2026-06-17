@@ -41,9 +41,7 @@ export const PROGRAM_META: Record<
 };
 
 export function getProgram(id: string) {
-  if (id === "beginner") return beginner;
-  if (id === "intermediate") return intermediate;
-  return null;
+  return isProgramId(id) ? PROGRAMS[id] : null;
 }
 
 /** Like getProgram but narrows to ProgramId and throws on an unknown id,

@@ -5,7 +5,7 @@ import { auth } from "@/auth";
 import { getUserById } from "@/db/users";
 import { issueToken } from "@/db/tokens";
 import { sendMail } from "@/lib/mailer";
-import { sameOrigin } from "@/lib/rateLimit";
+import { sameOrigin, rateLimit, clientIp } from "@/lib/rateLimit";
 import { generateTotpSecret, encryptSecret, otpauthUri } from "@/lib/totp";
 import { setTotpSecret, countBackupCodes } from "@/db/twoFactor";
 
@@ -33,6 +33,10 @@ export async function POST(req: Request) {
   if (!(await sameOrigin())) return NextResponse.json({ error: "Bad origin" }, { status: 403 });
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Throttle enrollment starts: bounds the confirmation-email vector and brute force.
+  const ip = await clientIp();
+  const rl = await rateLimit("2fa-begin", `${ip}:${session.user.id}`, 5, 10 * 60 * 1000);
+  if (!rl.ok) return NextResponse.json({ error: "Too many attempts. Try again later." }, { status: 429 });
   const user = await getUserById(session.user.id);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

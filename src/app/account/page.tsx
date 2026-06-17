@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Account",
   alternates: { canonical: "/account" },
+  robots: { index: false, follow: false },
 };
 
 export default async function AccountPage() {

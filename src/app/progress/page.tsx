@@ -11,7 +11,11 @@ import { resolveLocalDate } from "@/lib/time";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = { title: "Progress", alternates: { canonical: "/progress" } };
+export const metadata: Metadata = {
+  title: "Progress",
+  alternates: { canonical: "/progress" },
+  robots: { index: false, follow: false },
+};
 
 export default async function ProgressPage({
   searchParams,

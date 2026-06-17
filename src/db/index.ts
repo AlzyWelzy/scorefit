@@ -20,6 +20,8 @@ if (!connectionString) {
 // Reuse the client across hot-reloads / serverless invocations.
 const globalForDb = globalThis as unknown as { sql?: ReturnType<typeof postgres> };
 const sql = globalForDb.sql ?? postgres(connectionString, { prepare: false, max: 5 });
-if (process.env.NODE_ENV !== "production") globalForDb.sql = sql;
+// Cache the client across hot-reloads AND serverless invocations so we don't open a
+// fresh pool per cold start (connection-exhaustion risk under load).
+globalForDb.sql = sql;
 
 export const db = drizzle(sql, { schema });

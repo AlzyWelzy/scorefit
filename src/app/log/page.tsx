@@ -8,7 +8,11 @@ import { Logger, type LogDay, type InitialLog, type PrevLoad } from "@/component
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic"; // reads session + db; never prerender
 
-export const metadata: Metadata = { title: "Workout log", alternates: { canonical: "/log" } };
+export const metadata: Metadata = {
+  title: "Workout log",
+  alternates: { canonical: "/log" },
+  robots: { index: false, follow: false },
+};
 
 export default async function LogPage({
   searchParams,
