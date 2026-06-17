@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { workoutLogs, workoutSessions } from "@/db/schema";
 import { buildWeekCoordinates, type ProgramId } from "@/lib/data";
 import { e1rm } from "@/lib/strength";
-import { localDateInTz } from "@/lib/time";
+import { resolveLocalDate } from "@/lib/time";
 
 // A program-day "qualifies" as a real training session above this honesty floor,
 // computed from completed sets only (never from self-reported weight), so a single
@@ -11,30 +11,7 @@ import { localDateInTz } from "@/lib/time";
 const QUALIFY_MIN_SETS = 3;
 const QUALIFY_MIN_EXERCISES = 2;
 
-// The session's calendar date is frozen from when the set was actually RECORDED on
-// the client (sent as loggedAt), not when a flaky-signal flush finally reaches the
-// server — otherwise an 11pm-offline workout that syncs after midnight mis-dates.
-// We clamp the client instant server-side to resist backdating/clock-spoofing: at
-// most this far in the past, and a little skew into the future.
-const MAX_BACKDATE_MS = 48 * 60 * 60 * 1000;
-const MAX_SKEW_MS = 5 * 60 * 1000;
-
 type SessionContext = { tz?: string; loggedAt?: string };
-
-/** The user-local YYYY-MM-DD to freeze on a new session, from the (clamped) client
- *  record-time when supplied, else server now. */
-function resolveSessionDate({ tz, loggedAt }: SessionContext): string {
-  const zone = tz || "UTC";
-  const now = Date.now();
-  let at = now;
-  if (loggedAt) {
-    const parsed = Date.parse(loggedAt);
-    if (!Number.isNaN(parsed)) {
-      at = Math.min(Math.max(parsed, now - MAX_BACKDATE_MS), now + MAX_SKEW_MS);
-    }
-  }
-  return localDateInTz(zone, new Date(at));
-}
 
 /**
  * Recompute and upsert the derived workout_sessions row for one program-day from
@@ -55,7 +32,7 @@ export async function syncSessionForLog(
   daySlug: string,
   ctx: SessionContext = {},
 ): Promise<void> {
-  const sessionDate = resolveSessionDate(ctx);
+  const sessionDate = resolveLocalDate(ctx.tz, ctx.loggedAt);
   const lockKey = `session:${userId}:${program}:${week}:${daySlug}`;
 
   await db.transaction(async (tx) => {
