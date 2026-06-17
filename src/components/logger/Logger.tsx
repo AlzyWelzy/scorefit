@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Check, Loader2, CloudOff, RotateCw } from "lucide-react";
+import { Check, Loader2, CloudOff, RotateCw, Trophy, Sparkles, TrendingUp } from "lucide-react";
 import type { ProgramId } from "@/lib/data";
-import { saveSet, flushOutbox, pendingCount, type SaveState, type SetPayload } from "@/lib/logOutbox";
+import { saveSet, flushOutbox, pendingCount, type SaveState, type SetPayload, type GameResult } from "@/lib/logOutbox";
 
 export type LogExercise = {
   slug: string;
@@ -68,6 +68,32 @@ export function Logger({
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const latest = useRef<Record<string, SetPayload>>({});
 
+  // Celebratory toasts for game events (level-ups, achievements, PRs) the API returns
+  // on a live save. Auto-dismiss; announced via aria-live for screen readers.
+  const [toasts, setToasts] = useState<{ id: number; icon: "level" | "trophy" | "pr"; title: string; body: string }[]>([]);
+  const toastSeq = useRef(0);
+  const pushToast = useCallback((t: { icon: "level" | "trophy" | "pr"; title: string; body: string }) => {
+    const id = (toastSeq.current += 1);
+    setToasts((cur) => [...cur.slice(-3), { id, ...t }]);
+    setTimeout(() => setToasts((cur) => cur.filter((x) => x.id !== id)), 4500);
+  }, []);
+  const onGame = useCallback(
+    (game: GameResult) => {
+      if (!game) return;
+      if (game.leveledUpTo != null) pushToast({ icon: "level", title: `Level ${game.leveledUpTo}`, body: game.title });
+      for (const a of game.newlyUnlocked) {
+        pushToast({ icon: "trophy", title: a.hidden ? "Hidden achievement!" : "Achievement unlocked", body: a.title });
+      }
+      if (game.newPr) {
+        const name =
+          days.flatMap((d) => d.exercises).find((e) => e.slug === game.newPr!.exerciseSlug)?.name ??
+          game.newPr.exerciseSlug;
+        pushToast({ icon: "pr", title: "New personal record", body: `${name} · e1RM ${Math.round(game.newPr.e1rm)}` });
+      }
+    },
+    [pushToast, days],
+  );
+
   const cell = (k: string): Cell =>
     cells[k] ?? { weight: "", reps: "", rpe: "", completed: false };
 
@@ -114,9 +140,9 @@ export function Logger({
     (daySlug: string, ex: string, i: number, c: Cell) => {
       const p = payloadOf(daySlug, ex, i, c);
       latest.current[cellKey(daySlug, ex, i)] = p;
-      void saveSet(p, onState);
+      void saveSet(p, onState, onGame);
     },
-    [payloadOf, onState],
+    [payloadOf, onState, onGame],
   );
 
   const update = (daySlug: string, ex: string, i: number, patch: Partial<Cell>, immediate = false) => {
@@ -341,6 +367,33 @@ export function Logger({
       <p className="mt-10 text-center text-xs text-faint">
         <Link href="/progress" className="text-data hover:underline">View progress →</Link>
       </p>
+
+      {toasts.length > 0 && (
+        <div
+          className="pointer-events-none fixed inset-x-0 bottom-4 z-50 flex flex-col items-center gap-2 px-4"
+          role="status"
+          aria-live="polite"
+        >
+          {toasts.map((t) => (
+            <div
+              key={t.id}
+              className="pointer-events-auto flex items-center gap-3 rounded-card border border-accent/40 bg-surface px-4 py-2.5 shadow-lg"
+            >
+              {t.icon === "level" ? (
+                <Sparkles className="h-4 w-4 shrink-0 text-accent" />
+              ) : t.icon === "trophy" ? (
+                <Trophy className="h-4 w-4 shrink-0 text-data" />
+              ) : (
+                <TrendingUp className="h-4 w-4 shrink-0 text-ok" />
+              )}
+              <div>
+                <div className="text-sm font-medium text-fg">{t.title}</div>
+                <div className="text-xs text-muted">{t.body}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

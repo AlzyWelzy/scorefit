@@ -22,6 +22,17 @@ export type SetPayload = {
 
 export type SaveState = "saving" | "saved" | "queued" | "error";
 
+// Mirror of the server's GameOutcome (src/db/game.ts) — kept client-safe so we don't
+// pull server/db code into the bundle. Returned by /api/logs so the Logger can toast.
+export type GameResult = {
+  totalXp: number;
+  level: number;
+  title: string;
+  leveledUpTo: number | null;
+  newlyUnlocked: { id: string; title: string; tier: string | null; hidden: boolean }[];
+  newPr: { exerciseSlug: string; e1rm: number; gainPct: number | null } | null;
+} | null;
+
 const OUTBOX_KEY = "scorefit.outbox.v1";
 const keyOf = (p: SetPayload) =>
   `${p.program}|${p.week}|${p.daySlug}|${p.exerciseSlug}|${p.setIndex}`;
@@ -49,7 +60,7 @@ export function pendingCount(): number {
   return Object.keys(read()).length;
 }
 
-async function postOne(p: SetPayload): Promise<boolean> {
+async function postOne(p: SetPayload): Promise<{ ok: boolean; game?: GameResult }> {
   try {
     const res = await fetch("/api/logs", {
       method: "POST",
@@ -59,11 +70,13 @@ async function postOne(p: SetPayload): Promise<boolean> {
     if (res.status === 401) {
       // Session expired — surface to the UI; keep the item queued.
       window.dispatchEvent(new CustomEvent("scorefit-auth-expired"));
-      return false;
+      return { ok: false };
     }
-    return res.ok;
+    if (!res.ok) return { ok: false };
+    const body = (await res.json().catch(() => null)) as { game?: GameResult } | null;
+    return { ok: true, game: body?.game ?? null };
   } catch {
-    return false; // network failure
+    return { ok: false }; // network failure
   }
 }
 
@@ -74,6 +87,7 @@ async function postOne(p: SetPayload): Promise<boolean> {
 export async function saveSet(
   p: SetPayload,
   onState: (key: string, state: SaveState) => void,
+  onGame?: (game: GameResult) => void,
 ): Promise<void> {
   const k = keyOf(p);
   const box = read();
@@ -83,7 +97,7 @@ export async function saveSet(
   onState(k, navigator.onLine ? "saving" : "queued");
   if (!navigator.onLine) return;
 
-  const ok = await postOne(p);
+  const { ok, game } = await postOne(p);
   if (ok) {
     const cur = read();
     // Only clear if it hasn't been superseded by a newer edit.
@@ -92,6 +106,7 @@ export async function saveSet(
       write(cur);
     }
     onState(k, "saved");
+    if (game) onGame?.(game);
   } else {
     onState(k, navigator.onLine ? "error" : "queued");
   }
@@ -104,7 +119,7 @@ export async function flushOutbox(onState?: (key: string, state: SaveState) => v
   let sent = 0;
   for (const [k, p] of Object.entries(box)) {
     onState?.(k, "saving");
-    const ok = await postOne(p);
+    const { ok } = await postOne(p);
     if (ok) {
       const cur = read();
       if (cur[k] && JSON.stringify(cur[k]) === JSON.stringify(p)) {
