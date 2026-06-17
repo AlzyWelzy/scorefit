@@ -64,9 +64,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const { email, password, code } = parsed.data;
         // Throttle credential checks: 10 attempts / 10 min per IP+email.
         const ip = await clientIp();
-        const rl = await rateLimit("login", `${ip}:${email.toLowerCase()}`, 10, 10 * 60 * 1000, {
-          failClosed: true,
-        });
+        const rl = await rateLimit("login", `${ip}:${email.toLowerCase()}`, 10, 10 * 60 * 1000);
         if (!rl.ok) return null;
         const rows = await db
           .select()
@@ -140,7 +138,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             .limit(1);
         } catch {
           // Infrastructure error (pool/replica hiccup) — fail OPEN for
-          // availability: keep the existing token and retry on the next cycle.
+          // availability and retry next cycle, BUT cap how long a token may be
+          // honored without a successful revocation check: past a hard ceiling,
+          // force re-auth so a revoked session can't survive an extended outage.
+          const HARD_CEILING_MS = 30 * 60 * 1000;
+          if (t.verAt !== undefined && Date.now() - t.verAt > HARD_CEILING_MS) return null;
           return t;
         }
         // The read above succeeded (infra errors throw and are caught), so these

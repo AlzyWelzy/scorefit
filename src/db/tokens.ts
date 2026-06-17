@@ -38,13 +38,17 @@ export type VerifyResult =
   | { ok: false; reason: "no_token" | "expired" | "too_many_attempts" | "mismatch" };
 
 /**
- * Verify a submitted code. On success the token is consumed (deleted). On a
- * wrong code we increment attempts and lock the token after MAX_ATTEMPTS.
+ * Verify a submitted code. On success the token is consumed (deleted) unless
+ * `opts.consume === false`, in which case the caller is responsible for calling
+ * consumeToken only after its own follow-up work succeeds — so a transient
+ * failure doesn't burn a one-time code. On a wrong code we increment attempts
+ * and lock the token after MAX_ATTEMPTS.
  */
 export async function verifyToken(
   userId: string,
   purpose: TokenPurpose,
   code: string,
+  opts?: { consume?: boolean; countAttempts?: boolean },
 ): Promise<VerifyResult> {
   const rows = await db
     .select()
@@ -65,13 +69,17 @@ export async function verifyToken(
     // Increment atomically in SQL (attempts = attempts + 1) rather than writing
     // back the value we read — otherwise N concurrent wrong guesses all read the
     // same count and advance the counter by 1, defeating the MAX_ATTEMPTS lock.
-    await db
-      .update(verificationTokens)
-      .set({ attempts: sql`${verificationTokens.attempts} + 1` })
-      .where(and(eq(verificationTokens.userId, userId), eq(verificationTokens.purpose, purpose)));
+    // Skipped when countAttempts === false (a read-only "peek" that must not
+    // burn a coexisting token's lockout budget — see the verify-email flow).
+    if (opts?.countAttempts !== false) {
+      await db
+        .update(verificationTokens)
+        .set({ attempts: sql`${verificationTokens.attempts} + 1` })
+        .where(and(eq(verificationTokens.userId, userId), eq(verificationTokens.purpose, purpose)));
+    }
     return { ok: false, reason: "mismatch" };
   }
-  await consumeToken(userId, purpose);
+  if (opts?.consume !== false) await consumeToken(userId, purpose);
   return { ok: true };
 }
 

@@ -2,14 +2,14 @@
 // single instance / dev); if UPSTASH_REDIS_REST_URL + _TOKEN are set we use
 // Upstash's REST API so it works across serverless instances.
 //
-// Returns { ok, remaining, retryAfter }. On a limiter error it fails OPEN by
-// default, but auth-critical callers pass { failClosed: true } so a limiter
-// outage can't open a brute-force window.
+// Returns { ok, remaining, retryAfter }. If Upstash is configured but errors,
+// we DEGRADE to the in-memory limiter for that request rather than failing open
+// (a brute-force window) or failing closed (a total auth lockout on a Redis
+// blip). In-memory limiting during an outage is per-instance but still bounded.
 
 import { headers } from "next/headers";
 
 export type RateResult = { ok: boolean; remaining: number; retryAfter: number };
-export type RateOptions = { failClosed?: boolean };
 
 const buckets = new Map<string, { count: number; resetAt: number }>();
 
@@ -61,7 +61,7 @@ async function upstashLimit(
   if (!res.ok) throw new Error(`upstash ${res.status}`);
   const out = (await res.json()) as { result: unknown }[];
   // A degraded 200 with a malformed/partial body must be treated as a limiter
-  // failure (→ fail-closed for auth buckets), NOT coalesced to count 0 = allow.
+  // failure (→ in-memory fallback), NOT coalesced to count 0 = allow.
   const rawCount = out[0]?.result;
   if (typeof rawCount !== "number" || !Number.isFinite(rawCount)) {
     throw new Error("upstash malformed pipeline result");
@@ -90,27 +90,35 @@ function warnIfUnsharedInProd() {
   );
 }
 
+let lastFallbackLog = 0;
+function logUpstashFallback(err: unknown) {
+  // Throttle so an outage doesn't flood logs, but stays observable to operators.
+  const now = Date.now();
+  if (now - lastFallbackLog < 30_000) return;
+  lastFallbackLog = now;
+  console.error("[rateLimit] Upstash unavailable — degrading to in-memory limiting:", err);
+}
+
 export async function rateLimit(
   name: string,
   id: string,
   limit: number,
   windowMs: number,
-  opts?: RateOptions,
 ): Promise<RateResult> {
   const key = `rl:${name}:${id}`;
-  try {
-    if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+  if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+    try {
       return await upstashLimit(key, limit, windowMs);
+    } catch (err) {
+      // Redis blip / degraded response → degrade to per-instance in-memory
+      // limiting (still bounded) rather than locking out all auth or opening a
+      // brute-force window. Logged (throttled) so the outage is visible.
+      logUpstashFallback(err);
+      return memoryLimit(key, limit, windowMs);
     }
-    warnIfUnsharedInProd();
-    return memoryLimit(key, limit, windowMs);
-  } catch {
-    // Auth-critical callers fail CLOSED (deny) so a limiter outage can't open a
-    // brute-force window; everything else fails OPEN to not block real users.
-    return opts?.failClosed
-      ? { ok: false, remaining: 0, retryAfter: Math.ceil(windowMs / 1000) }
-      : { ok: true, remaining: limit, retryAfter: 0 };
   }
+  warnIfUnsharedInProd();
+  return memoryLimit(key, limit, windowMs);
 }
 
 /** Best-effort client IP from proxy headers (Vercel sets x-forwarded-for). */

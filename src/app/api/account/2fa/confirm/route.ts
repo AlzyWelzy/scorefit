@@ -26,9 +26,7 @@ export async function POST(req: Request) {
   // Throttle confirm-code attempts so a hijacked session can't brute-force the
   // 6-digit setup code (the TOTP path has no per-token counter of its own).
   const ip = await clientIp();
-  const rl = await rateLimit("2fa-confirm", `${ip}:${session.user.id}`, 10, 10 * 60 * 1000, {
-    failClosed: true,
-  });
+  const rl = await rateLimit("2fa-confirm", `${ip}:${session.user.id}`, 10, 10 * 60 * 1000);
   if (!rl.ok) return NextResponse.json({ error: "Too many attempts. Try again later." }, { status: 429 });
 
   const body = await req.json().catch(() => null);
@@ -40,9 +38,11 @@ export async function POST(req: Request) {
   if (method === "totp") {
     if (!user.totpSecret) return NextResponse.json({ error: "Start setup again." }, { status: 400 });
     try {
-      // Confirm only proves possession — don't persist a step floor here, or the
-      // first real login with the same still-valid code would be rejected. The
-      // single-use baseline is established by that first login instead.
+      // Don't persist a step floor at enrollment: the user's first real login
+      // must be able to use the still-valid code (storing it here would reject a
+      // correct, current code on an immediate sign-in). Single-use is enforced
+      // from that first login onward (advanceTotpStep in verifySecondFactor); the
+      // enrollment code being usable for the first login is the intended first use.
       ok = verifyTotp(decryptSecret(user.totpSecret), code.trim()) !== null;
     } catch {
       ok = false;

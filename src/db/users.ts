@@ -13,6 +13,16 @@ export async function getUserByEmail(email: string): Promise<User | null> {
   return rows[0] ?? null;
 }
 
+/** True if an account already exists with this email (case-insensitive). */
+export async function emailExists(email: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, email.toLowerCase()))
+    .limit(1);
+  return rows.length > 0;
+}
+
 export async function setName(id: string, name: string | null): Promise<void> {
   await db.update(users).set({ name }).where(eq(users.id, id));
 }
@@ -33,19 +43,28 @@ export async function setPendingEmail(id: string, email: string | null): Promise
     .where(eq(users.id, id));
 }
 
-/** Apply a confirmed email change: swap in the new address, mark it verified,
- *  clear the pending field, and bump tokenVersion — the login identifier changed,
- *  so all existing sessions must re-authenticate (same as a password change). */
-export async function applyPendingEmail(id: string, email: string): Promise<void> {
-  await db
+/**
+ * Apply a confirmed email change: swap in the new address, mark it verified,
+ * clear the pending field, and bump tokenVersion — the login identifier changed,
+ * so all existing sessions must re-authenticate (same as a password change).
+ * Conditional on pending_email still equalling the confirmed value, so a
+ * concurrent re-stage can't be applied with the wrong address. Returns false if
+ * nothing matched (pending changed/cleared underneath us). Throws on a unique
+ * violation (the address was taken in a race).
+ */
+export async function applyPendingEmail(id: string, email: string): Promise<boolean> {
+  const target = email.toLowerCase();
+  const rows = await db
     .update(users)
     .set({
-      email: email.toLowerCase(),
+      email: target,
       emailVerified: new Date(),
       pendingEmail: null,
       tokenVersion: sql`${users.tokenVersion} + 1`,
     })
-    .where(eq(users.id, id));
+    .where(and(eq(users.id, id), eq(users.pendingEmail, target)))
+    .returning({ id: users.id });
+  return rows.length > 0;
 }
 
 /**
@@ -64,8 +83,10 @@ export async function advanceTotpStep(id: string, step: number): Promise<boolean
 }
 
 export async function setPasswordHash(id: string, passwordHash: string): Promise<void> {
-  // Bumping tokenVersion invalidates every existing JWT session on a password
-  // change/reset — other devices (and any hijacked session) must re-authenticate.
+  // Bumping tokenVersion revokes every existing JWT session on a password
+  // change/reset — other devices (and any hijacked session) must re-authenticate
+  // within ~5 min (the jwt callback re-checks the version on that cadence), not
+  // instantly: stateless-JWT revocation is eventual, bounded by that window.
   await db
     .update(users)
     .set({ passwordHash, tokenVersion: sql`${users.tokenVersion} + 1` })
