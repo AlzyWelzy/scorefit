@@ -85,6 +85,11 @@ make replay safe.
 
 > Merges the design panel's ~30 proposed tables into one of each. `users` gains only 3 columns
 > in early phases; `workout_logs` is unchanged.
+>
+> **IDs:** every `id`/`*Id` below is a **ULID generated via `newId()`** (time-sortable, stored
+> in a native `uuid` column) — see [src/lib/ids.ts](src/lib/ids.ts). The `uuid pk` shorthand in
+> the sketches means a ULID-in-uuid key, **not** `gen_random_uuid()`. New tables must mint ids
+> with `.$defaultFn(newId)`, never `.defaultRandom()`.
 
 ```
 users (ALTER): + timezone text NOT NULL default 'UTC'  (IANA, server-side local-date + quiet hours)
