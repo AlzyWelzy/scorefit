@@ -1,6 +1,14 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
+import dns from "node:dns";
+import net from "node:net";
 import * as schema from "./schema";
+
+// See drizzle.config.ts: some hosts advertise an unroutable IPv6 address for
+// Neon, and Node's Happy Eyeballs then hangs on the dead AAAA record before
+// falling back to IPv4. Prefer IPv4. Harmless where IPv6 routes normally.
+dns.setDefaultResultOrder("ipv4first");
+net.setDefaultAutoSelectFamily(false);
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
