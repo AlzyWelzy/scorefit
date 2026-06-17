@@ -75,6 +75,10 @@ export default async function ProgressPage({
         <div>
           <span className="eyebrow">Progress · {PROGRAM_META[program].name}</span>
           <h1 className="mt-1 font-display text-3xl font-bold tracking-tight">Your training</h1>
+          <div className="mt-1 flex gap-3 text-xs">
+            <Link href="/profile" className="text-data hover:underline">Training Score →</Link>
+            <Link href="/achievements" className="text-data hover:underline">Achievements →</Link>
+          </div>
         </div>
         <div className="inline-flex overflow-hidden rounded-lg border border-line text-xs">
           {(["beginner", "intermediate"] as ProgramId[]).map((p) => (

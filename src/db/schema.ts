@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, real, boolean, timestamp, date, unique, index } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, integer, real, boolean, timestamp, date, jsonb, unique, index } from "drizzle-orm/pg-core";
 import { newId } from "../lib/ids";
 
 // Every `id` is a ULID rendered into a native Postgres `uuid` column (16-byte,
@@ -145,3 +145,116 @@ export type WorkoutLog = typeof workoutLogs.$inferSelect;
 export type NewWorkoutLog = typeof workoutLogs.$inferInsert;
 export type VerificationToken = typeof verificationTokens.$inferSelect;
 export type BackupCode = typeof backupCodes.$inferSelect;
+
+// ─── Gamification: XP, levels & achievements (Phase 2) ───────────────────────
+// All driven by one write-time engine (evaluateGameEvents, src/db/game.ts) hooked
+// into the set-log write path. Caches below are fully recomputable from xp_events
+// + the logs, so drift is recoverable.
+
+// One denormalized per-user game summary. O(1) reads for /profile and headers.
+export const userGameProfile = pgTable("user_game_profile", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  totalXp: integer("total_xp").notNull().default(0), // = SUM(xp_events.amount)
+  level: integer("level").notNull().default(1),
+  title: text("title").notNull().default("Novice"),
+  // exerciseSlug → best Epley e1RM + the date it was set, for O(1) PR detection
+  // and the per-exercise PR cooldown. In the user's own weight unit (unit-agnostic).
+  bestE1rm: jsonb("best_e1rm")
+    .$type<Record<string, { e1rm: number; at: string }>>()
+    .notNull()
+    .default({}),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Idempotent, upsertable XP ledger. amount is the CURRENT correct value for a
+// (source, refKey) — re-evaluating a set upserts it (0 when un-completed), so
+// totalXp = SUM(amount) stays correct with no reversal rows. The unique key is the
+// idempotency guard against the offline outbox replaying the same set.
+export const xpEvents = pgTable(
+  "xp_events",
+  {
+    id: uuid("id").primaryKey().$defaultFn(newId),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    source: text("source", {
+      enum: ["set_completion", "log_quality", "pr", "achievement", "cadence", "perfect_week"],
+    }).notNull(),
+    refKey: text("ref_key").notNull(), // e.g. a set coordinate, or 'pr:bench:2026-06-17'
+    amount: integer("amount").notNull(),
+    eventDate: date("event_date", { mode: "string" }).notNull(), // = the session's local date
+    meta: jsonb("meta"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("uq_xp_event").on(t.userId, t.source, t.refKey),
+    index("idx_xp_user_date").on(t.userId, t.eventDate),
+  ],
+);
+
+// Earned badges. UNIQUE makes the on-write insert idempotent; tier upgrades in place.
+export const userAchievements = pgTable(
+  "user_achievements",
+  {
+    id: uuid("id").primaryKey().$defaultFn(newId),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    achievementId: text("achievement_id").notNull(), // stable rule slug
+    tier: text("tier"), // 'bronze' | 'silver' | 'gold' | null
+    evidence: jsonb("evidence"), // snapshot of what triggered it (auditable)
+    unlockedAt: timestamp("unlocked_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique("uq_user_achievement").on(t.userId, t.achievementId)],
+);
+
+// Running counters toward locked/tiered achievements so the engine and the trophy
+// room never rescan all logs (progress bars: "11/53", "400 to next landmark").
+export const achievementProgress = pgTable(
+  "achievement_progress",
+  {
+    id: uuid("id").primaryKey().$defaultFn(newId),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    key: text("key").notNull(), // e.g. 'explorer:distinct', 'volume:lifetime'
+    progressValue: real("progress_value").notNull().default(0),
+    progressMax: real("progress_max"), // next-tier / completion threshold
+    meta: jsonb("meta"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique("uq_ach_progress").on(t.userId, t.key)],
+);
+
+// Append-only personal-record ledger derived from completed sets. Feeds PR XP, the
+// e1RM-PR achievement, and (later) a self-relative leaderboard + feed events.
+export const prEvents = pgTable(
+  "pr_events",
+  {
+    id: uuid("id").primaryKey().$defaultFn(newId),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    exerciseSlug: text("exercise_slug").notNull(),
+    kind: text("kind", { enum: ["e1rm", "volume"] }).notNull(),
+    value: real("value").notNull(), // e1RM (user's unit) or volume
+    gainPct: real("gain_pct"), // % over prior best
+    occurredOn: date("occurred_on", { mode: "string" }).notNull(),
+    flagged: boolean("flagged").notNull().default(false), // implausible jump: recorded, not rewarded
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // One PR row per exercise per local day, upserted in lockstep with PR XP so the
+    // ledger can't drift from multiple PR sets on the same exercise+date.
+    unique("uq_pr_event").on(t.userId, t.exerciseSlug, t.occurredOn, t.kind),
+    index("idx_pr_user_ex").on(t.userId, t.exerciseSlug),
+  ],
+);
+
+export type UserGameProfile = typeof userGameProfile.$inferSelect;
+export type XpEvent = typeof xpEvents.$inferSelect;
+export type UserAchievement = typeof userAchievements.$inferSelect;
+export type AchievementProgressRow = typeof achievementProgress.$inferSelect;
+export type PrEvent = typeof prEvents.$inferSelect;

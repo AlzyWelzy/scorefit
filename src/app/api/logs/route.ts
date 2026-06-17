@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { getLogsForWeek, upsertSetLog } from "@/db/logs";
+import { evaluateGameEvents } from "@/db/game";
 import { PROGRAM_IDS } from "@/lib/data";
+import { resolveLocalDate } from "@/lib/time";
 import { sameOrigin } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
@@ -57,5 +59,30 @@ export async function POST(req: Request) {
     timezone: session.user.timezone,
     loggedAt,
   });
-  return NextResponse.json({ log: row }, { status: 200 });
+
+  // Gamification engine (best-effort): a game-layer failure must never fail the
+  // set save. Driven off the persisted row (normalized values), with the same
+  // local event date the session writer used.
+  let game = null;
+  try {
+    game = await evaluateGameEvents(
+      session.user.id,
+      {
+        program: row.program,
+        week: row.week,
+        daySlug: row.daySlug,
+        exerciseSlug: row.exerciseSlug,
+        setIndex: row.setIndex,
+        weight: row.weight,
+        reps: row.reps,
+        rpe: row.rpe,
+        completed: row.completed,
+      },
+      { unit: session.user.unit, eventDate: resolveLocalDate(session.user.timezone, loggedAt) },
+    );
+  } catch (err) {
+    console.error("[game] evaluate failed", err);
+  }
+
+  return NextResponse.json({ log: row, game }, { status: 200 });
 }
