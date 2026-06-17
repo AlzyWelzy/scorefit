@@ -18,6 +18,13 @@ export const XP = {
   achievement: 50,
 } as const;
 
+// Weekly cadence XP — the headline consistency reward. Cumulative by distinct
+// training days in a calendar week, CAPPED at ~5 prescribed days so a 6th/7th
+// session pays nothing (anti-overtraining by construction). Index by min(days, 5).
+export const CADENCE_XP = [0, 15, 25, 40, 60, 80] as const;
+export const PERFECT_WEEK_DAYS = 5;
+export const PERFECT_WEEK_XP = 50;
+
 /** XP for a single set's completion. Only completed, in-prescription sets pay. */
 export function setCompletionXp(completed: boolean, isPrescribed: boolean): number {
   return completed && isPrescribed ? XP.prescribedSet : 0;

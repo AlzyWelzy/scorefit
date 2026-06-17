@@ -28,6 +28,20 @@ export function resolveLocalDate(tz: string | undefined, loggedAt?: string): str
   return localDateInTz(zone, new Date(at));
 }
 
+/** The Monday (ISO week start) of the week containing `dateStr` (YYYY-MM-DD). */
+export function weekStartOf(dateStr: string): string {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); // back up to Monday
+  return d.toISOString().slice(0, 10);
+}
+
+/** Add `n` days to a YYYY-MM-DD date, returning YYYY-MM-DD. */
+export function addDays(dateStr: string, n: number): string {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
 /** True if `tz` is a valid IANA timezone identifier (e.g. "America/Los_Angeles"). */
 export function isValidTimeZone(tz: string): boolean {
   try {

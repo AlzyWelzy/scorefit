@@ -11,8 +11,9 @@ import {
 } from "@/db/schema";
 import { buildWeekCoordinates, weekCount, type ProgramId } from "@/lib/data";
 import { e1rm } from "@/lib/strength";
+import { weekStartOf, addDays } from "@/lib/time";
 import { levelForXp, titleForLevel } from "@/lib/game/levels";
-import { XP, setCompletionXp, logQualityXp, PR_MAX_GAIN_PCT } from "@/lib/game/xp";
+import { XP, setCompletionXp, logQualityXp, PR_MAX_GAIN_PCT, CADENCE_XP, PERFECT_WEEK_DAYS, PERFECT_WEEK_XP } from "@/lib/game/xp";
 import { ACHIEVEMENTS, type AchievementContext, type AchievementTier } from "@/lib/game/achievements";
 
 const LB_TO_KG = 0.45359237;
@@ -41,7 +42,7 @@ function daysBetween(a: string, b: string): number {
 const TIER_RANK: Record<string, number> = { bronze: 1, silver: 2, gold: 3 };
 const tierRank = (t: string | null | undefined): number => (t ? (TIER_RANK[t] ?? 0) : 0);
 
-type XpSource = "set_completion" | "log_quality" | "pr" | "achievement";
+type XpSource = "set_completion" | "log_quality" | "pr" | "achievement" | "cadence" | "perfect_week";
 type XpRow = { source: XpSource; refKey: string; amount: number; eventDate: string };
 
 export type GameEventInput = {
@@ -258,6 +259,33 @@ export async function evaluateGameEvents(
         newlyUnlocked.push({ id: rule.id, title: rule.title, tier: res.tier, hidden: !!rule.hidden });
       }
     }
+
+    // ---- weekly cadence XP (the consistency reward; idempotent + self-healing per week) ----
+    const weekStart = weekStartOf(eventDate);
+    const [wk] = await tx
+      .select({
+        days: sql<number>`count(distinct ${workoutSessions.sessionDate}) filter (where ${workoutSessions.qualifies})::int`,
+      })
+      .from(workoutSessions)
+      .where(
+        and(
+          eq(workoutSessions.userId, userId),
+          sql`${workoutSessions.sessionDate} between ${weekStart}::date and ${addDays(weekStart, 6)}::date`,
+        ),
+      );
+    const weekDays = wk?.days ?? 0;
+    xpRows.push({
+      source: "cadence",
+      refKey: `cadence:${weekStart}`,
+      amount: CADENCE_XP[Math.min(weekDays, CADENCE_XP.length - 1)]!,
+      eventDate,
+    });
+    xpRows.push({
+      source: "perfect_week",
+      refKey: `perfectweek:${weekStart}`,
+      amount: weekDays >= PERFECT_WEEK_DAYS ? PERFECT_WEEK_XP : 0,
+      eventDate,
+    });
 
     // ---- persist progress + unlocks + all XP (batched upserts) ----
     if (progressRows.length) {
