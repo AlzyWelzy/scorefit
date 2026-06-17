@@ -1,6 +1,6 @@
 # ScoreFit
 
-A science-based hypertrophy training website built with **Next.js 16 (App Router)**, **React 19**, **TypeScript 5.9**, and **Tailwind CSS 4**. It contains the complete training system: two 12-week programs, all 53 exercises with real demo-video stills and click-to-play demos, and the full guidebook (principles, RPE scale, progression, gear, anatomy, nutrition, supplements, FAQ, references).
+A science-based hypertrophy training website built with **Next.js 16 (App Router)**, **React 19**, **TypeScript 6**, and **Tailwind CSS 4**. It contains the complete training system: two 12-week programs, all 53 exercises with real demo-video stills and click-to-play demos, and the full guidebook (principles, RPE scale, progression, gear, anatomy, nutrition, supplements, FAQ, references).
 
 Domain target: **scorefit.net**
 
@@ -21,13 +21,22 @@ Domain target: **scorefit.net**
 |---|---|---|
 | Framework | next | 16.2.9 |
 | UI runtime | react / react-dom | 19.2.7 |
-| Language | typescript | 5.9.2 |
-| Styling | tailwindcss + @tailwindcss/postcss | 4.3.0 |
-| Animation | motion | 12.40.0 |
-| Icons | lucide-react | 0.469.0 |
-| Markdown | react-markdown + remark-gfm | 9.0.1 / 4.0.0 |
+| Language | typescript | 6.0 |
+| Auth | next-auth (Auth.js v5) | 5.0.0-beta |
+| ORM | drizzle-orm / drizzle-kit | 0.45 / 0.31 |
+| Styling | tailwindcss + @tailwindcss/postcss | 4.3.1 |
+| Animation | motion | 12.40 |
+| Icons | lucide-react | 1.20 |
+| Markdown | react-markdown + remark-gfm | 10.1 / 4.0 |
+| Email | nodemailer | 9.0 |
+| Validation | zod | 4.4 |
+| Lint | eslint (flat config) + eslint-config-next | 9.39 / 16.2.9 |
 
-Node.js **20.9+** required (22 LTS recommended).
+Node.js **20.9+** required (24 LTS recommended; see `.nvmrc`).
+
+> **Linting:** ESLint uses Next.js's native flat config (`eslint-config-next/core-web-vitals` + `/typescript`), so no `@eslint/eslintrc` shim is needed. ESLint stays on the 9.x line because `eslint-config-next@16.2.9`'s bundled plugins (react, import, jsx-a11y, react-hooks) don't yet declare ESLint 10 support.
+>
+> **`.npmrc`:** `legacy-peer-deps=true` is set because next-auth 5 (beta) pins `@auth/core`, which declares an *optional* peer on nodemailer ^7; this project doesn't use Auth.js's Nodemailer provider, so it runs the latest nodemailer 9. Remove once next-auth 5 stable widens that range.
 
 ---
 

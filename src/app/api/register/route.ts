@@ -10,7 +10,7 @@ import { rateLimit, clientIp, sameOrigin } from "@/lib/rateLimit";
 export const runtime = "nodejs";
 
 const schema = z.object({
-  email: z.string().email(),
+  email: z.email(),
   password: z.string().min(8, "Password must be at least 8 characters"),
   name: z.string().trim().min(1).max(80).optional(),
 });
@@ -22,7 +22,7 @@ export async function POST(req: Request) {
 
   // Rate limit by IP: 5 signups / 10 min.
   const ip = await clientIp();
-  const rl = await rateLimit("register", ip, 5, 10 * 60 * 1000);
+  const rl = await rateLimit("register", ip, 5, 10 * 60 * 1000, { failClosed: true });
   if (!rl.ok) {
     return NextResponse.json(
       { error: "Too many attempts. Please try again later." },

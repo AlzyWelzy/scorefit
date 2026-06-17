@@ -291,7 +291,9 @@ function PasswordSection() {
       setCurrentPassword("");
       setNewPassword("");
       setConfirm("");
-      setTimeout(() => setSuccess(false), 3000);
+      // Changing the password revokes all sessions (including this one) — sign
+      // out cleanly here instead of letting the JWT be invalidated silently later.
+      setTimeout(() => void signOut({ callbackUrl: "/login" }), 1500);
     } catch {
       setError("Something went wrong. Check your connection and try again.");
     } finally {
@@ -310,7 +312,7 @@ function PasswordSection() {
         )}
         {success && (
           <p aria-live="polite" className={okBox}>
-            Password updated.
+            Password updated. Signing you out — please sign in again.
           </p>
         )}
         <Field

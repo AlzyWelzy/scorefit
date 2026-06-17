@@ -9,7 +9,7 @@ import { rateLimit, clientIp, sameOrigin } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
-const schema = z.object({ email: z.string().email(), password: z.string().min(8) });
+const schema = z.object({ email: z.email(), password: z.string().min(8) });
 
 // Step 1 of login. Verifies the password WITHOUT issuing a session. If 2FA is
 // on, sets a short-lived pending cookie (and emails a code for the email
@@ -19,7 +19,7 @@ export async function POST(req: Request) {
   if (!(await sameOrigin())) return NextResponse.json({ error: "Bad origin" }, { status: 403 });
 
   const ip = await clientIp();
-  const rl = await rateLimit("2fa-start", ip, 20, 10 * 60 * 1000);
+  const rl = await rateLimit("2fa-start", ip, 20, 10 * 60 * 1000, { failClosed: true });
   if (!rl.ok) return NextResponse.json({ error: "Too many attempts. Try again later." }, { status: 429 });
 
   const body = await req.json().catch(() => null);

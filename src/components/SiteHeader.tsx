@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Logo } from "./Logo";
+import { NavLink } from "./NavLink";
 import { SearchTrigger } from "./SearchTrigger";
 import { AuthNav } from "./auth/AuthNav";
 
@@ -19,13 +20,13 @@ export function SiteHeader() {
         <Logo size={25} />
         <nav aria-label="Primary" className="hidden items-center gap-0.5 md:flex">
           {NAV.map((n) => (
-            <Link
+            <NavLink
               key={n.href}
               href={n.href}
-              className="rounded-lg px-3 py-2 text-sm text-muted transition-colors hover:bg-surface hover:text-fg"
+              className="rounded-lg px-3 py-2 text-sm text-muted transition-colors hover:bg-surface hover:text-fg aria-[current=page]:bg-surface aria-[current=page]:text-fg"
             >
               {n.label}
-            </Link>
+            </NavLink>
           ))}
         </nav>
         <div className="flex items-center gap-2">
@@ -41,13 +42,13 @@ export function SiteHeader() {
       </div>
       <nav aria-label="Primary mobile" className="flex items-center gap-0.5 overflow-x-auto border-t border-line px-3 py-2 md:hidden">
         {NAV.map((n) => (
-          <Link
+          <NavLink
             key={n.href}
             href={n.href}
-            className="whitespace-nowrap rounded-lg px-3 py-1.5 text-sm text-muted hover:text-fg"
+            className="whitespace-nowrap rounded-lg px-3 py-1.5 text-sm text-muted hover:text-fg aria-[current=page]:text-fg"
           >
             {n.label}
-          </Link>
+          </NavLink>
         ))}
       </nav>
     </header>

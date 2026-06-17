@@ -7,7 +7,7 @@ import { rateLimit, clientIp, sameOrigin } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
-const schema = z.object({ email: z.string().email() });
+const schema = z.object({ email: z.email() });
 
 // POST { email } → if the account exists, email a reset code. Always returns
 // the same response (enumeration-safe).
@@ -15,7 +15,7 @@ export async function POST(req: Request) {
   if (!(await sameOrigin())) return NextResponse.json({ error: "Bad origin" }, { status: 403 });
 
   const ip = await clientIp();
-  const rl = await rateLimit("forgot-password", ip, 5, 15 * 60 * 1000);
+  const rl = await rateLimit("forgot-password", ip, 5, 15 * 60 * 1000, { failClosed: true });
   if (!rl.ok) {
     return NextResponse.json({ error: "Too many attempts. Try again later." }, { status: 429 });
   }

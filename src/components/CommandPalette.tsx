@@ -39,16 +39,19 @@ export function CommandPalette({ index }: { index: SearchEntry[] }) {
 
   const results = useMemo(() => {
     const query = q.trim().toLowerCase();
-    if (!query) {
-      // default: a few of each kind so the palette isn't empty
-      return index.slice(0, 8);
-    }
-    return index
-      .map((e) => ({ e, s: score(e, query) }))
-      .filter((x) => x.s >= 0)
-      .sort((a, b) => b.s - a.s || a.e.title.localeCompare(b.e.title))
-      .slice(0, 40)
-      .map((x) => x.e);
+    const base = !query
+      ? // default: a few of each kind so the palette isn't empty
+        index.slice(0, 8)
+      : index
+          .map((e) => ({ e, s: score(e, query) }))
+          .filter((x) => x.s >= 0)
+          .sort((a, b) => b.s - a.s || a.e.title.localeCompare(b.e.title))
+          .slice(0, 40)
+          .map((x) => x.e);
+    // Order by display group (KIND_ORDER) so the flat index used by arrow-key
+    // navigation + aria-activedescendant matches the visually grouped list.
+    // Array.sort is stable, so the score order is preserved within each kind.
+    return [...base].sort((a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind));
   }, [q, index]);
 
   // index lookup by entry id (perf + correctness vs results.indexOf)
@@ -98,13 +101,14 @@ export function CommandPalette({ index }: { index: SearchEntry[] }) {
     if (open) {
       // remember what had focus so we can restore it on close
       restoreFocusRef.current = document.activeElement as HTMLElement | null;
+      // Reset the selection and focus the input when the palette enters — an
+      // intentional "on open" side-effect tied to focus management.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setActive(0);
       // focus after paint
       requestAnimationFrame(() => inputRef.current?.focus());
     }
   }, [open]);
-
-  useEffect(() => setActive(0), [q]);
 
   // keep active item in view
   useEffect(() => {
@@ -116,7 +120,7 @@ export function CommandPalette({ index }: { index: SearchEntry[] }) {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-start justify-center px-4 pt-[12vh]"
+      className="fixed inset-0 z-100 flex items-start justify-center px-4 pt-[12vh]"
       role="dialog"
       aria-modal="true"
       aria-label="Search ScoreFit"
@@ -128,7 +132,10 @@ export function CommandPalette({ index }: { index: SearchEntry[] }) {
           <input
             ref={inputRef}
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setActive(0);
+            }}
             onKeyDown={(e) => {
               if (e.key === "ArrowDown") {
                 e.preventDefault();
@@ -139,6 +146,11 @@ export function CommandPalette({ index }: { index: SearchEntry[] }) {
               } else if (e.key === "Enter") {
                 e.preventDefault();
                 go();
+              } else if (e.key === "Tab") {
+                // Trap focus in the dialog: navigation is via arrows +
+                // aria-activedescendant, so keep focus on the input rather than
+                // letting Tab escape to the page behind the modal.
+                e.preventDefault();
               }
             }}
             placeholder="Search exercises, weeks, guide…"
@@ -173,6 +185,7 @@ export function CommandPalette({ index }: { index: SearchEntry[] }) {
                         key={r.id}
                         id={`cmdk-opt-${idx}`}
                         role="option"
+                        tabIndex={-1}
                         aria-selected={isActive}
                         data-idx={idx}
                         onMouseMove={() => setActive(idx)}

@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { ArrowRight, ArrowUpRight, Target, Gauge, TrendingUp, Repeat, Dumbbell, Layers } from "lucide-react";
-import { ExerciseImage } from "@/components/ExerciseImage";
 import { ExerciseLibraryCard } from "@/components/ExerciseCard";
 import { VolumeChart } from "@/components/VolumeChart";
 import { CountUp } from "@/components/motion/CountUp";

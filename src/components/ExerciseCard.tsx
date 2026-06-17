@@ -72,8 +72,10 @@ function Metric({ label, value }: { label: string; value?: string | null }) {
 // Library grid card.
 export function ExerciseLibraryCard({
   ex,
+  eager = false,
 }: {
   ex: { name: string; slug: string; demo?: string | null; technique?: string | null };
+  eager?: boolean;
 }) {
   return (
     <Link
@@ -86,6 +88,7 @@ export function ExerciseLibraryCard({
         name={ex.name}
         rounded=""
         className="aspect-video w-full"
+        eager={eager}
       />
       <div className="flex items-start justify-between gap-2 p-3.5">
         <h4 className="font-display text-sm font-semibold leading-tight text-fg group-hover:text-accent">

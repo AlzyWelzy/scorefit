@@ -17,6 +17,15 @@ export const users = pgTable("users", {
   twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
   twoFactorMethod: text("two_factor_method", { enum: ["email", "totp"] }),
   totpSecret: text("totp_secret"), // encrypted base32 secret, null unless TOTP configured
+  // Highest TOTP step already accepted — lets verification reject replay of a
+  // code within its ±1-step drift window (each code becomes single-use).
+  lastTotpStep: integer("last_totp_step"),
+  // Bumped on every password change/reset; the JWT carries the version it was
+  // minted with, so a bump invalidates all existing sessions (forces re-auth).
+  tokenVersion: integer("token_version").notNull().default(0),
+  // Address awaiting verification during an email change. The current (verified)
+  // email is kept until the new address is confirmed via an emailed code.
+  pendingEmail: text("pending_email"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

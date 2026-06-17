@@ -29,6 +29,8 @@ export function VerifyBanner() {
   }, []);
 
   useEffect(() => {
+    // Fetch live status on mount and subscribe to focus/verified events.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void refresh();
     const onFocus = () => void refresh();
     const onVerified = () => setShow(false);

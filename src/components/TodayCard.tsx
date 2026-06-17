@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import Link from "next/link";
 import { ArrowRight, Moon } from "lucide-react";
 import { WEEKDAYS, type DayHit } from "@/lib/today";
@@ -8,12 +8,17 @@ import { dayHref } from "@/lib/links";
 
 type Maps = { beginner: Record<string, DayHit>; intermediate: Record<string, DayHit> };
 
+const subscribe = () => () => {};
+
 export function TodayCard({ maps }: { maps: Maps }) {
-  // Compute weekday on the client so it reflects the user's timezone.
-  const [weekday, setWeekday] = useState<string | null>(null);
-  useEffect(() => {
-    setWeekday(WEEKDAYS[new Date().getDay()] ?? null);
-  }, []);
+  // Compute weekday on the client so it reflects the user's timezone. SSR and
+  // the first hydration render use the server snapshot (null → placeholder),
+  // then React re-renders with the resolved weekday — no hydration mismatch.
+  const weekday = useSyncExternalStore(
+    subscribe,
+    () => WEEKDAYS[new Date().getDay()] ?? null,
+    () => null,
+  );
 
   if (!weekday) {
     // Pre-hydration placeholder keeps layout stable (no CLS).

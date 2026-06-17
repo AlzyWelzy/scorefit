@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 
@@ -13,21 +13,22 @@ export function TwoFactorChallenge({
 }) {
   const router = useRouter();
   const [code, setCode] = useState("");
-  const [creds, setCreds] = useState<{ email: string; password: string } | null>(null);
+  // Recover the password stashed by the login form (same-origin sessionStorage).
+  // Read once during init — `creds` never affects markup, so there is no
+  // hydration mismatch and no setState-in-effect is needed.
+  const [creds] = useState<{ email: string; password: string } | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = sessionStorage.getItem("sf_2fa");
+      return raw ? (JSON.parse(raw) as { email: string; password: string }) : null;
+    } catch {
+      return null;
+    }
+  });
   const [useBackup, setUseBackup] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [resent, setResent] = useState(false);
-
-  // Recover the password stashed by the login form (same-origin sessionStorage).
-  useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem("sf_2fa");
-      if (raw) setCreds(JSON.parse(raw));
-    } catch {
-      /* ignore */
-    }
-  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();

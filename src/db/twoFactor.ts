@@ -10,7 +10,9 @@ const hash = (code: string) => createHash("sha256").update(code.toUpperCase().re
 
 // ---- account-level 2FA state ------------------------------------------
 export async function setTotpSecret(userId: string, encryptedSecret: string): Promise<void> {
-  await db.update(users).set({ totpSecret: encryptedSecret }).where(eq(users.id, userId));
+  // Reset the single-use step floor: a freshly enrolled secret must start clean
+  // so its first valid codes aren't rejected by a previous secret's high step.
+  await db.update(users).set({ totpSecret: encryptedSecret, lastTotpStep: null }).where(eq(users.id, userId));
 }
 
 export async function enableTwoFactor(userId: string, method: TwoFactorMethod): Promise<void> {
@@ -23,7 +25,7 @@ export async function enableTwoFactor(userId: string, method: TwoFactorMethod): 
 export async function disableTwoFactor(userId: string): Promise<void> {
   await db
     .update(users)
-    .set({ twoFactorEnabled: false, twoFactorMethod: null, totpSecret: null })
+    .set({ twoFactorEnabled: false, twoFactorMethod: null, totpSecret: null, lastTotpStep: null })
     .where(eq(users.id, userId));
   await db.delete(backupCodes).where(eq(backupCodes.userId, userId));
 }

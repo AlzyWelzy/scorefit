@@ -77,6 +77,9 @@ export function RestTimer() {
       const raw = localStorage.getItem(STORE_KEY);
       if (!raw) return;
       const p = JSON.parse(raw) as Persisted;
+      // Restoring from localStorage must happen post-mount: the persisted state
+      // differs from the SSR default, so doing it in render would hydration-mismatch.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTotal(p.total);
       if (p.endAt && p.endAt > Date.now()) {
         setEndAt(p.endAt);
@@ -95,6 +98,8 @@ export function RestTimer() {
   // Tick + visibility/focus re-sync while running.
   useEffect(() => {
     if (endAt === null) return;
+    // Kick the ticking subscription immediately, then on an interval.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     recompute();
     const iv = setInterval(recompute, 250);
     const onVis = () => recompute();
@@ -159,7 +164,9 @@ export function RestTimer() {
     }
   };
 
-  const pct = total > 0 ? left / total : 0;
+  // Clamp: left and total are independent state, so a mount-restore frame can
+  // briefly have left > total (e.g. restoring a sub-90s preset) — don't overdraw.
+  const pct = total > 0 ? Math.min(1, Math.max(0, left / total)) : 0;
   const R = 52;
   const C = 2 * Math.PI * R;
   const done = left === 0 && !running;
@@ -191,13 +198,16 @@ export function RestTimer() {
           <div
             className="absolute inset-0 flex items-center justify-center"
             role="timer"
-            aria-live="polite"
             aria-label={done ? "Rest complete" : `${fmt(left)} remaining`}
           >
             <span className="num text-2xl font-semibold text-fg tabular-nums">
               {done ? "done" : fmt(left)}
             </span>
           </div>
+          {/* Announce only completion (once), not every per-second tick. */}
+          <span className="sr-only" aria-live="assertive">
+            {done ? "Rest complete" : ""}
+          </span>
         </div>
 
         <div className="flex-1">

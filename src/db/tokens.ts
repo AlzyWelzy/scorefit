@@ -1,10 +1,10 @@
 import "server-only";
 import { createHash, randomInt } from "crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { verificationTokens } from "@/db/schema";
 
-export type TokenPurpose = "email_verify" | "password_reset" | "two_factor";
+export type TokenPurpose = "email_verify" | "email_change" | "password_reset" | "two_factor";
 
 const TTL_MS = 10 * 60 * 1000; // 10 minutes
 const MAX_ATTEMPTS = 5;
@@ -62,9 +62,12 @@ export async function verifyToken(
     return { ok: false, reason: "too_many_attempts" };
   }
   if (token.codeHash !== hash(code)) {
+    // Increment atomically in SQL (attempts = attempts + 1) rather than writing
+    // back the value we read — otherwise N concurrent wrong guesses all read the
+    // same count and advance the counter by 1, defeating the MAX_ATTEMPTS lock.
     await db
       .update(verificationTokens)
-      .set({ attempts: token.attempts + 1 })
+      .set({ attempts: sql`${verificationTokens.attempts} + 1` })
       .where(and(eq(verificationTokens.userId, userId), eq(verificationTokens.purpose, purpose)));
     return { ok: false, reason: "mismatch" };
   }

@@ -8,7 +8,7 @@ import { rateLimit, clientIp, sameOrigin } from "@/lib/rateLimit";
 export const runtime = "nodejs";
 
 const schema = z.object({
-  email: z.string().email(),
+  email: z.email(),
   code: z.string().regex(/^\d{6}$/, "Enter the 6-digit code."),
   password: z.string().min(8, "Password must be at least 8 characters"),
 });
@@ -18,7 +18,7 @@ export async function POST(req: Request) {
   if (!(await sameOrigin())) return NextResponse.json({ error: "Bad origin" }, { status: 403 });
 
   const ip = await clientIp();
-  const rl = await rateLimit("reset-password", ip, 10, 15 * 60 * 1000);
+  const rl = await rateLimit("reset-password", ip, 10, 15 * 60 * 1000, { failClosed: true });
   if (!rl.ok) {
     return NextResponse.json({ error: "Too many attempts. Try again later." }, { status: 429 });
   }

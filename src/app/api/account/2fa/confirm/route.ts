@@ -3,7 +3,7 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { getUserById } from "@/db/users";
 import { verifyToken } from "@/db/tokens";
-import { sameOrigin } from "@/lib/rateLimit";
+import { rateLimit, clientIp, sameOrigin } from "@/lib/rateLimit";
 import { verifyTotp, decryptSecret } from "@/lib/totp";
 import { enableTwoFactor, generateBackupCodes } from "@/db/twoFactor";
 
@@ -23,6 +23,14 @@ export async function POST(req: Request) {
   const user = await getUserById(session.user.id);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  // Throttle confirm-code attempts so a hijacked session can't brute-force the
+  // 6-digit setup code (the TOTP path has no per-token counter of its own).
+  const ip = await clientIp();
+  const rl = await rateLimit("2fa-confirm", `${ip}:${session.user.id}`, 10, 10 * 60 * 1000, {
+    failClosed: true,
+  });
+  if (!rl.ok) return NextResponse.json({ error: "Too many attempts. Try again later." }, { status: 429 });
+
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Enter the code." }, { status: 400 });
@@ -32,7 +40,10 @@ export async function POST(req: Request) {
   if (method === "totp") {
     if (!user.totpSecret) return NextResponse.json({ error: "Start setup again." }, { status: 400 });
     try {
-      ok = verifyTotp(decryptSecret(user.totpSecret), code.trim());
+      // Confirm only proves possession — don't persist a step floor here, or the
+      // first real login with the same still-valid code would be rejected. The
+      // single-use baseline is established by that first login instead.
+      ok = verifyTotp(decryptSecret(user.totpSecret), code.trim()) !== null;
     } catch {
       ok = false;
     }

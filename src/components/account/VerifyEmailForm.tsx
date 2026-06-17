@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 
 const RESEND_COOLDOWN = 30;
 
-export function VerifyEmailForm() {
+export function VerifyEmailForm({ changing = false }: { changing?: boolean }) {
   const router = useRouter();
   const { update } = useSession();
   const [code, setCode] = useState("");
@@ -14,21 +14,22 @@ export function VerifyEmailForm() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(0);
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const counting = cooldown > 0;
 
-  // Tick the resend cooldown down to zero.
+  // Tick the resend cooldown down to zero while it is active.
   useEffect(() => {
-    if (cooldown <= 0) return;
-    timer.current = setInterval(() => {
+    if (!counting) return;
+    const id = setInterval(() => {
       setCooldown((c) => {
-        if (c <= 1 && timer.current) clearInterval(timer.current);
+        if (c <= 1) {
+          clearInterval(id);
+          return 0;
+        }
         return c - 1;
       });
     }, 1000);
-    return () => {
-      if (timer.current) clearInterval(timer.current);
-    };
-  }, [cooldown > 0]);
+    return () => clearInterval(id);
+  }, [counting]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -48,6 +49,14 @@ export function VerifyEmailForm() {
           const data = (await res.json().catch(() => ({}))) as { error?: string };
           setError(data.error ?? "Invalid code.");
         }
+        return;
+      }
+      const data = (await res.json().catch(() => ({}))) as { emailChanged?: boolean };
+      if (data.emailChanged) {
+        // Changing the login email revoked all sessions — sign in again cleanly
+        // rather than being dropped silently a few minutes later.
+        setNotice("Email updated. Please sign in again with your new address.");
+        setTimeout(() => void signOut({ callbackUrl: "/login" }), 1500);
         return;
       }
       // Instantly dismiss the verify banner, refresh the session JWT, then go.
@@ -81,6 +90,25 @@ export function VerifyEmailForm() {
       setCooldown(RESEND_COOLDOWN);
     } catch {
       setError("Something went wrong. Check your connection and try again.");
+    }
+  }
+
+  // Cancel a pending email change and keep the current address.
+  async function cancelChange() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/account/verify-email", { method: "DELETE" });
+      if (!res.ok) {
+        setError("Could not cancel. Try again.");
+        return;
+      }
+      router.push("/account");
+      router.refresh();
+    } catch {
+      setError("Something went wrong. Check your connection and try again.");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -137,6 +165,17 @@ export function VerifyEmailForm() {
       >
         {cooldown > 0 ? `Resend code in ${cooldown}s` : "Resend code"}
       </button>
+
+      {changing && (
+        <button
+          type="button"
+          onClick={cancelChange}
+          disabled={busy}
+          className="w-full text-center text-sm text-faint transition-colors hover:text-muted disabled:opacity-60"
+        >
+          Cancel and keep my current email
+        </button>
+      )}
     </form>
   );
 }

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { getUserById, setName, setEmail, setPasswordHash, setUnit } from "@/db/users";
+import { getUserById, setName, setPendingEmail, setPasswordHash, setUnit } from "@/db/users";
 import { issueToken } from "@/db/tokens";
 import { sendVerificationCode } from "@/lib/mailer";
 import { sameOrigin } from "@/lib/rateLimit";
@@ -14,7 +14,7 @@ export const runtime = "nodejs";
 
 const patchSchema = z.object({
   name: z.string().trim().min(1).max(80).nullable().optional(),
-  email: z.string().email().optional(),
+  email: z.email().optional(),
   unit: z.enum(["kg", "lb"]).optional(),
   // Required only when changing email or password.
   currentPassword: z.string().optional(),
@@ -58,18 +58,26 @@ export async function PATCH(req: Request) {
   let emailChanged = false;
   if (email !== undefined && email.toLowerCase() !== user.email) {
     const target = email.toLowerCase();
-    // Enumeration-safe: if the address is taken, report success but do nothing.
+    // Report the same outcome whether or not the address is already registered,
+    // so an authenticated user can't enumerate accounts via this endpoint.
+    emailChanged = true;
     const taken = await db.select({ id: users.id }).from(users).where(eq(users.email, target)).limit(1);
     if (taken.length === 0) {
-      await setEmail(user.id, target);
-      emailChanged = true;
+      // Stage the change as pending — the current verified email stays in place
+      // until the code we email to the NEW address is confirmed (verify-email
+      // applies the swap). This prevents an unverified/typo/attacker address
+      // from taking over the account before it proves control.
+      await setPendingEmail(user.id, target);
       try {
-        const code = await issueToken(user.id, "email_verify");
+        // Distinct "email_change" token sent to the NEW address — kept separate
+        // from "email_verify" so a current-email verification can't apply it.
+        const code = await issueToken(user.id, "email_change");
         await sendVerificationCode(target, code);
       } catch (err) {
         console.error("[account] verification email failed", err);
       }
     }
+    // If taken: silently do nothing, but still report success (masking).
   }
 
   return NextResponse.json({ ok: true, emailChanged }, { status: 200 });
