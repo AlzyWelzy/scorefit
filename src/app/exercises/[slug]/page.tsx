@@ -68,7 +68,7 @@ export default async function ExercisePage({
           <span className="rounded border border-data/30 bg-data/10 px-2 py-0.5 text-xs text-data">{ARCHETYPE_LABEL[arch]}</span>
           {tech && <span className="rounded border border-accent/25 bg-accent-dim px-2 py-0.5 text-xs text-accent-2">{tech}</span>}
         </div>
-        <h1 className="mt-3 font-display text-4xl font-bold tracking-tight sm:text-5xl">{ex.name}</h1>
+        <h1 className="mt-3 font-display text-4xl font-bold tracking-tight sm:text-5xl"><span className="gradient-text">{ex.name}</span></h1>
       </Reveal>
 
       <div className="mt-8 grid gap-8 md:grid-cols-[1.15fr_0.85fr]">
@@ -94,7 +94,7 @@ export default async function ExercisePage({
                   <Stat value={first.reps ?? "—"} label="reps" accent="data" />
                 </div>
                 {first.lastRPE && (
-                  <div className="mt-3 rounded-lg border border-line bg-surface px-4 py-3.5">
+                  <div className="card mt-3 px-4 py-3.5">
                     <div className="mb-2 flex items-baseline justify-between">
                       <span className="eyebrow">last-set RPE</span>
                       <span className="num text-sm text-muted">{first.lastRPE.replace("~", "")}</span>
@@ -106,8 +106,8 @@ export default async function ExercisePage({
             )}
 
             {ex.notes && (
-              <div className="rounded-card border border-line bg-surface p-5">
-                <h2 className="eyebrow mb-2">Coaching cues</h2>
+              <div className="card p-5">
+                <h2 className="eyebrow-accent mb-2">Coaching cues</h2>
                 <p className="leading-relaxed text-fg/90">{ex.notes}</p>
               </div>
             )}
@@ -121,7 +121,7 @@ export default async function ExercisePage({
           <h2 className="eyebrow mb-3">Substitutions</h2>
           <div className="grid gap-3 sm:grid-cols-2">
             {[ex.sub1, ex.sub2].filter(Boolean).map((s, i) => (
-              <div key={i} className="flex items-center gap-3 rounded-card border border-line bg-surface p-4">
+              <div key={i} className="card card-hover flex items-center gap-3 p-4">
                 <Repeat2 className="h-5 w-5 shrink-0 text-data" />
                 <div>
                   <div className="eyebrow">Option {i + 1}</div>
@@ -144,7 +144,7 @@ export default async function ExercisePage({
                 <Link
                   key={`${pid}-${wk}`}
                   href={`/programs/${pid}/week/${wk}`}
-                  className="num rounded border border-line bg-surface px-2.5 py-1 text-xs text-muted transition-colors hover:border-line-2 hover:text-fg"
+                  className="btn-surface num px-2.5 py-1 text-xs text-muted hover:text-fg"
                 >
                   {PROGRAM_META[pid].name.split(" ")[0]} · W{wk}
                 </Link>

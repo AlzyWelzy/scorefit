@@ -40,7 +40,7 @@ export function Field({
         inputMode={inputMode}
         pattern={pattern}
         maxLength={maxLength}
-        className="w-full rounded-lg border border-line bg-bg px-3 py-2.5 text-base text-fg focus:border-accent focus:outline-none"
+        className="w-full rounded-lg border border-line bg-bg px-3 py-2.5 text-base text-fg shadow-[inset_0_1px_2px_rgba(0,0,0,0.3)] transition-[border-color,box-shadow] placeholder:text-muted focus:border-accent focus:shadow-[inset_0_1px_2px_rgba(0,0,0,0.3),0_0_0_3px_color-mix(in_srgb,var(--color-accent)_22%,transparent)] focus:outline-none"
       />
       {hint && <span className="mt-1 block text-xs text-muted">{hint}</span>}
     </label>

@@ -172,14 +172,14 @@ export function RestTimer() {
   const done = left === 0 && !running;
 
   return (
-    <div className="rounded-card border border-line bg-surface p-5">
+    <div className="glass p-5">
       <div className="mb-4 flex items-baseline justify-between">
         <h3 className="font-display text-lg font-semibold">Rest timer</h3>
-        <span className="eyebrow">between sets</span>
+        <span className="eyebrow-accent">between sets</span>
       </div>
 
       <div className="flex items-center gap-5">
-        <div className="relative h-32 w-32 shrink-0">
+        <div className={`relative h-32 w-32 shrink-0 rounded-full ${running ? "glow-accent-pulse" : done ? "glow-data-soft" : ""}`}>
           <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90" aria-hidden>
             <circle cx="60" cy="60" r={R} fill="none" stroke="var(--color-line-2)" strokeWidth="6" />
             <circle
@@ -200,7 +200,7 @@ export function RestTimer() {
             role="timer"
             aria-label={done ? "Rest complete" : `${fmt(left)} remaining`}
           >
-            <span className="num text-2xl font-semibold text-fg tabular-nums">
+            <span className={`num text-2xl font-semibold tabular-nums ${done ? "text-data" : "text-fg"}`}>
               {done ? "done" : fmt(left)}
             </span>
           </div>
@@ -214,14 +214,14 @@ export function RestTimer() {
           <div className="flex gap-2">
             <button
               onClick={toggle}
-              className="inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-bg hover:bg-accent-2"
+              className="btn-accent inline-flex min-h-11 items-center gap-1.5 px-4 py-2 text-sm"
             >
               {running ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
               {running ? "Pause" : done ? "Restart" : pausedLeft != null ? "Resume" : "Start"}
             </button>
             <button
               onClick={reset}
-              className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-line px-3 py-2 text-muted hover:text-fg"
+              className="btn-surface inline-flex min-h-11 min-w-11 items-center justify-center px-3 py-2"
               aria-label="Reset timer"
             >
               <RotateCcw className="h-4 w-4" />
@@ -232,8 +232,8 @@ export function RestTimer() {
               <button
                 key={p}
                 onClick={() => set(p)}
-                className={`num min-h-9 rounded-lg border px-2.5 py-1 text-xs ${
-                  total === p ? "border-accent text-accent" : "border-line text-muted hover:text-fg"
+                className={`num min-h-9 rounded-lg border px-2.5 py-1 text-xs transition-colors ${
+                  total === p ? "ring-accent border-accent text-accent" : "border-line text-muted hover:border-line-2 hover:text-fg"
                 }`}
               >
                 {fmt(p)}

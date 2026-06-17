@@ -51,7 +51,7 @@ export function PlateCalculator() {
   };
 
   return (
-    <div className="rounded-card border border-line bg-surface p-5">
+    <div className="glass p-5">
       <div className="mb-4 flex items-baseline justify-between">
         <h3 className="font-display text-lg font-semibold">Plate calculator</h3>
         <div className="inline-flex overflow-hidden rounded-lg border border-line text-xs">
@@ -59,7 +59,7 @@ export function PlateCalculator() {
             <button
               key={u}
               onClick={() => switchUnit(u)}
-              className={`px-3 py-1.5 font-mono uppercase ${unit === u ? "bg-accent text-bg" : "text-muted hover:text-fg"}`}
+              className={`px-3 py-1.5 font-mono uppercase transition-colors ${unit === u ? "btn-accent rounded-none" : "text-muted hover:text-fg"}`}
             >
               {u}
             </button>
@@ -76,7 +76,7 @@ export function PlateCalculator() {
             value={target}
             onChange={(e) => setTarget(e.target.value)}
             placeholder="e.g. 100"
-            className="num w-full rounded-lg border border-line bg-bg px-3 py-2.5 text-lg text-fg focus:border-accent focus:outline-none"
+            className="num w-full rounded-lg border border-line bg-bg px-3 py-2.5 text-lg text-fg transition-colors focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
           />
         </label>
         <label className="block">
@@ -84,7 +84,7 @@ export function PlateCalculator() {
           <select
             value={bar}
             onChange={(e) => setBar(parseFloat(e.target.value))}
-            className="num w-full rounded-lg border border-line bg-bg px-3 py-2.5 text-lg text-fg focus:border-accent focus:outline-none"
+            className="num w-full rounded-lg border border-line bg-bg px-3 py-2.5 text-lg text-fg transition-colors focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
           >
             {BAR[unit].map((b) => (
               <option key={b} value={b}>
@@ -102,7 +102,7 @@ export function PlateCalculator() {
         )}
         {result && result.ok && (
           <>
-            <span className="eyebrow">per side</span>
+            <span className="eyebrow-accent">per side</span>
             {result.used.length === 0 ? (
               <p className="mt-1 text-sm text-muted">Just the bar.</p>
             ) : (

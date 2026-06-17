@@ -32,9 +32,10 @@ export function DayNav({ days }: { days: Day[] }) {
           <a
             key={d.slug}
             href={`#${d.slug}`}
-            className={`flex shrink-0 items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm transition-colors ${
+            aria-current={on ? "true" : undefined}
+            className={`flex shrink-0 items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm transition-all ${
               on
-                ? "border-accent/40 bg-accent-dim text-fg"
+                ? "border-accent/40 bg-accent-dim text-fg ring-accent glow-accent"
                 : "border-transparent text-muted hover:bg-surface hover:text-fg"
             }`}
           >

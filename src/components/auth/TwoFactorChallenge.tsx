@@ -101,13 +101,13 @@ export function TwoFactorChallenge({
           required
           autoFocus
           aria-label={useBackup ? "Backup code" : "Two-factor code"}
-          className="num w-full rounded-lg border border-line bg-bg px-3 py-2.5 text-center text-2xl tracking-[0.4em] text-fg focus:border-accent focus:outline-none"
+          className="num w-full rounded-lg border border-line bg-bg px-3 py-2.5 text-center text-2xl tracking-[0.4em] text-data shadow-[inset_0_1px_2px_rgba(0,0,0,0.3)] transition-[border-color,box-shadow] placeholder:text-muted focus:border-accent focus:shadow-[inset_0_1px_2px_rgba(0,0,0,0.3),0_0_0_3px_color-mix(in_srgb,var(--color-accent)_22%,transparent)] focus:outline-none"
         />
       </label>
       <button
         type="submit"
         disabled={busy}
-        className="w-full rounded-lg bg-accent px-4 py-2.5 font-semibold text-bg transition-colors hover:bg-accent-2 disabled:opacity-60"
+        className="btn-accent w-full px-4 py-2.5 font-semibold disabled:opacity-60"
       >
         {busy ? "Verifying…" : "Verify"}
       </button>

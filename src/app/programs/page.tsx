@@ -15,8 +15,8 @@ export default function ProgramsPage() {
     <div className="mx-auto max-w-6xl px-5 py-16">
       <Reveal>
         <span className="eyebrow">Train</span>
-        <h1 className="mt-2.5 font-display text-4xl font-bold tracking-tight sm:text-5xl">
-          Choose your program
+        <h1 className="display-tight mt-2.5 font-display text-4xl font-bold tracking-tight sm:text-5xl">
+          Choose your <span className="gradient-text">program</span>
         </h1>
         <p className="mt-4 max-w-xl text-muted">
           Both run a 5-day Upper / Lower / Pull / Push / Legs split across two 12-week
@@ -35,9 +35,9 @@ export default function ProgramsPage() {
           const m = PROGRAM_META[id];
           return (
             <RevealItem key={id}>
-              <Link href={m.href} className="group relative flex h-full flex-col overflow-hidden rounded-card border border-line bg-surface p-8 transition-all hover:border-line-2">
-                <div className="glow-ember -right-16 -top-16 h-44 w-44 opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
-                <span className="eyebrow relative">{m.level}</span>
+              <Link href={m.href} className="card card-hover group relative flex h-full flex-col overflow-hidden p-8">
+                <div className="glow-ember -right-16 -top-16 h-52 w-52 opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+                <span className="eyebrow-accent relative">{m.level}</span>
                 <h2 className="relative mt-3 font-display text-3xl font-bold">{m.name}</h2>
                 <p className="relative mt-2 flex-1 text-muted">{m.tagline}</p>
                 <span className="relative mt-7 inline-flex items-center gap-2 font-semibold text-accent">

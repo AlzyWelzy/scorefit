@@ -64,7 +64,7 @@ export function VerifyBanner() {
   }
 
   return (
-    <div className="border-b border-warn/20 bg-warn/10 px-5 py-2.5">
+    <div className="border-b border-warn/25 bg-linear-to-r from-warn/12 via-warn/8 to-transparent px-5 py-2.5">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-1 text-sm">
         <MailWarning className="h-4 w-4 shrink-0 text-warn" />
         <span className="text-fg">Verify your email to secure your account.</span>

@@ -25,7 +25,7 @@ export function ExerciseRow({ ex, index }: { ex: Ex; index: number }) {
   return (
     <Link
       href={`/exercises/${ex.slug}`}
-      className="group block rounded-card border border-line bg-surface p-3 transition-all hover:border-line-2 hover:bg-surface-2"
+      className="group card card-hover block p-3"
     >
       <div className="flex gap-4">
         <ExerciseImage
@@ -80,16 +80,19 @@ export function ExerciseLibraryCard({
   return (
     <Link
       href={`/exercises/${ex.slug}`}
-      className="group flex flex-col overflow-hidden rounded-card border border-line bg-surface transition-all hover:border-line-2"
+      className="group card card-hover flex flex-col overflow-hidden p-0"
     >
-      <ExerciseImage
-        slug={ex.slug}
-        demo={ex.demo}
-        name={ex.name}
-        rounded=""
-        className="aspect-video w-full"
-        eager={eager}
-      />
+      <div className="relative overflow-hidden">
+        <ExerciseImage
+          slug={ex.slug}
+          demo={ex.demo}
+          name={ex.name}
+          rounded=""
+          className="aspect-video w-full"
+          eager={eager}
+        />
+        <span className="glow-accent pointer-events-none absolute inset-x-8 bottom-0 h-px opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+      </div>
       <div className="flex items-start justify-between gap-2 p-3.5">
         <h4 className="font-display text-sm font-semibold leading-tight text-fg group-hover:text-accent">
           {ex.name}

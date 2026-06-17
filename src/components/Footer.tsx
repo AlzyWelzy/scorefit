@@ -3,7 +3,8 @@ import { Logo } from "./Logo";
 
 export function Footer() {
   return (
-    <footer className="mt-28 border-t border-line">
+    <footer className="relative mt-28 border-t border-line">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-data/25 to-transparent" />
       <div className="mx-auto grid max-w-6xl gap-10 px-5 py-14 sm:grid-cols-2 md:grid-cols-4">
         <div className="sm:col-span-2 md:col-span-1">
           <Logo size={24} />
@@ -33,7 +34,7 @@ function FooterCol({ title, links }: { title: string; links: [string, string][] 
       <ul className="space-y-2.5">
         {links.map(([href, label]) => (
           <li key={href}>
-            <Link href={href} className="text-sm text-muted transition-colors hover:text-fg">
+            <Link href={href} className="text-sm text-muted transition-colors hover:text-accent-2">
               {label}
             </Link>
           </li>

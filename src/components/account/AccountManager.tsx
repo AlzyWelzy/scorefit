@@ -13,8 +13,7 @@ const errorBox =
   "rounded-lg border border-hard/30 bg-hard/10 px-3 py-2 text-sm text-hard";
 const okBox =
   "rounded-lg border border-ok/30 bg-ok/10 px-3 py-2 text-sm text-ok";
-const submitBtn =
-  "w-full rounded-lg bg-accent px-4 py-2.5 font-semibold text-bg transition-colors hover:bg-accent-2 disabled:opacity-60";
+const submitBtn = "btn-accent w-full disabled:opacity-60";
 
 /** Pulls a human-readable error out of a fetch Response. */
 async function readError(res: Response): Promise<string> {
@@ -84,8 +83,8 @@ function ProfileSection({ name, unit }: { name: string | null; unit: Unit }) {
   }
 
   return (
-    <section className="rounded-card border border-line bg-surface p-5">
-      <h2 className="eyebrow">Profile</h2>
+    <section className="glass p-5">
+      <h2 className="eyebrow-accent">Profile</h2>
       <form onSubmit={submit} className="mt-4 space-y-4">
         {error && (
           <p role="alert" className={errorBox}>
@@ -108,7 +107,7 @@ function ProfileSection({ name, unit }: { name: string | null; unit: Unit }) {
           <div
             role="group"
             aria-label="Unit preference"
-            className="inline-flex overflow-hidden rounded-lg border border-line text-sm"
+            className="inline-flex overflow-hidden rounded-lg border border-line bg-bg text-sm"
           >
             {(["kg", "lb"] as Unit[]).map((u) => (
               <button
@@ -116,8 +115,10 @@ function ProfileSection({ name, unit }: { name: string | null; unit: Unit }) {
                 type="button"
                 aria-pressed={chosenUnit === u}
                 onClick={() => setChosenUnit(u)}
-                className={`px-4 py-1.5 transition-colors ${
-                  chosenUnit === u ? "bg-accent text-bg" : "text-muted hover:text-fg"
+                className={`px-4 py-1.5 transition-all ${
+                  chosenUnit === u
+                    ? "bg-accent font-semibold text-bg glow-accent"
+                    : "text-muted hover:text-fg"
                 }`}
               >
                 {u}
@@ -193,10 +194,10 @@ function EmailSection({
   }
 
   return (
-    <section className="rounded-card border border-line bg-surface p-5">
-      <h2 className="eyebrow">Email</h2>
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-        <span className="text-sm text-fg">{email}</span>
+    <section className="glass p-5">
+      <h2 className="eyebrow-accent">Email</h2>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line bg-bg px-3 py-2">
+        <span className="num text-sm text-fg">{email}</span>
         {emailVerified ? (
           <span className="inline-flex items-center gap-1 text-xs text-ok">
             <Check className="h-3.5 w-3.5" /> Verified
@@ -302,8 +303,8 @@ function PasswordSection() {
   }
 
   return (
-    <section className="rounded-card border border-line bg-surface p-5">
-      <h2 className="eyebrow">Password</h2>
+    <section className="glass p-5">
+      <h2 className="eyebrow-accent">Password</h2>
       <form onSubmit={submit} className="mt-4 space-y-4">
         {error && (
           <p role="alert" className={errorBox}>
@@ -379,7 +380,7 @@ function DangerSection() {
   }
 
   return (
-    <section className="rounded-card border border-hard/30 bg-surface p-5">
+    <section className="glass border-hard/40 p-5">
       <h2 className="eyebrow text-hard">Danger zone</h2>
       <p className="mt-3 text-sm text-muted">
         Deleting your account is permanent. All of your workout logs and progress
@@ -390,7 +391,7 @@ function DangerSection() {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="mt-4 rounded-lg border border-hard/30 bg-hard/10 px-4 py-2 text-sm font-semibold text-hard transition-colors hover:bg-hard/20"
+          className="mt-4 rounded-lg border border-hard/40 bg-hard/10 px-4 py-2 text-sm font-semibold text-hard transition-all hover:bg-hard/20 hover:border-hard/60"
         >
           Delete account
         </button>
@@ -422,7 +423,7 @@ function DangerSection() {
             <button
               type="submit"
               disabled={busy || confirmText !== "DELETE"}
-              className="rounded-lg bg-hard px-4 py-2.5 font-semibold text-bg transition-colors hover:opacity-90 disabled:opacity-60"
+              className="rounded-lg bg-hard px-4 py-2.5 font-semibold text-bg shadow-[0_4px_16px_-4px_rgba(255,80,80,0.5)] transition-all hover:opacity-90 hover:-translate-y-0.5 disabled:opacity-60 disabled:hover:translate-y-0"
             >
               {busy ? "Deleting…" : "Permanently delete"}
             </button>
@@ -434,7 +435,7 @@ function DangerSection() {
                 setConfirmText("");
                 setPassword("");
               }}
-              className="rounded-lg border border-line px-4 py-2.5 text-sm text-muted transition-colors hover:text-fg"
+              className="btn-ghost"
             >
               Cancel
             </button>

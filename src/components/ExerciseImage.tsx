@@ -45,7 +45,8 @@ export function ExerciseImage({
         fetchPriority={eager ? "high" : "auto"}
         className={`absolute inset-0 h-full w-full object-cover ${treat ? "media-treat" : ""}`}
       />
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-bg/55 via-transparent to-transparent" />
+      <div className="pointer-events-none absolute inset-0 bg-linear-to-t from-bg/65 via-bg/5 to-transparent" />
+      <div className="pointer-events-none absolute inset-0 bg-linear-to-tr from-accent/0 via-accent/0 to-accent-glow/0 opacity-0 transition-opacity duration-300 group-hover:to-accent-glow/15 group-hover:opacity-100" />
     </div>
   );
 }

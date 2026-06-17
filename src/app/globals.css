@@ -1,39 +1,55 @@
 @import "tailwindcss";
 
 /* =========================================================================
-   ScoreFit — "Ledger" design system
+   ScoreFit — "Ledger" design system  ·  BOLD MODERN DARK
    Dark-first instrument panel. One ember accent for action, teal for data.
+   Deep cool-black base, layered glass surfaces, vivid accent glows.
    ========================================================================= */
 
 @theme {
-  --color-bg: #0b0d0f;
-  --color-surface: #121518;
-  --color-surface-2: #181c20;
-  --color-surface-3: #1f242a;
+  /* Base — deepened cool blue-black for more depth + modern tilt.
+     Surfaces step up in elevation with a faint blue cast (not pure neutral). */
+  --color-bg: #07090c;
+  --color-surface: #0e1217;
+  --color-surface-2: #151a21;
+  --color-surface-3: #1d242c;
 
-  --color-line: #23282d;
-  --color-line-2: #2e343a;
+  --color-line: #232b33;
+  --color-line-2: #313b45;
 
-  --color-fg: #eceff1;
-  --color-muted: #9ba4ad;
-  --color-faint: #6b747c;
+  /* Foreground — slightly brighter for crisper contrast on the darker base. */
+  --color-fg: #f1f4f7;
+  --color-muted: #a3acb6;
+  --color-faint: #6f7984;
 
+  /* Ember — same recognizable identity, accent-2 pushed a touch hotter. */
   --color-accent: #ff6a3d;
-  --color-accent-2: #ff854f;
+  --color-accent-2: #ff8a52;
   --color-accent-press: #e8552b;
   --color-accent-dim: #2a160f;
+  /* Electric/vivid variant used purely for glows + gradient highlights. */
+  --color-accent-glow: #ff7a45;
 
-  --color-data: #2dd4bf;
+  /* Teal data — brightened slightly for the deeper background. */
+  --color-data: #34e0ca;
   --color-data-dim: #0f2e2a;
 
   --color-ok: #34d399;
   --color-warn: #fbbf24;
   --color-hard: #f87171;
 
-  --color-prose: #cdd2d8;
+  --color-prose: #d2d7dd;
 
   --radius-card: 16px;
   --radius-lg: 12px;
+
+  /* ---- Elevation tokens — depth/shadow vocabulary (design was flat) ---- */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -12px rgba(0, 0, 0, 0.7);
+  --shadow-lift: 0 2px 6px rgba(0, 0, 0, 0.45), 0 20px 48px -16px rgba(0, 0, 0, 0.8);
+  --shadow-glow: 0 0 0 1px rgba(255, 106, 61, 0.25), 0 8px 30px -6px rgba(255, 106, 61, 0.35);
+  --shadow-glow-data: 0 0 0 1px rgba(52, 224, 202, 0.22), 0 8px 30px -6px rgba(52, 224, 202, 0.3);
+  /* Inner top highlight — the "light catches the top edge" glass cue. */
+  --shadow-inner-top: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 @theme inline {
@@ -80,10 +96,16 @@ body {
 .eyebrow {
   font-family: var(--font-mono);
   font-size: 0.7rem;
-  letter-spacing: 0.16em;
+  font-weight: 500;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--color-muted);
 }
+/* .eyebrow-accent — same label, lit in ember for active/section emphasis. */
+.eyebrow-accent { color: var(--color-accent-2); }
+
+/* .display-tight — extra-tight optical tracking for big bold hero headings. */
+.display-tight { font-family: var(--font-display); letter-spacing: -0.035em; line-height: 0.98; }
 
 /* ---- Accessibility helpers ---- */
 .sr-only {
@@ -116,21 +138,37 @@ body {
   font-weight: 600;
 }
 
+/* ---- Glows — more vivid radial halos that sit behind content (z:0) ----
+   Two-stop radial for a hotter core + softer falloff; richer blur. */
 .glow-ember {
   position: absolute;
   border-radius: 9999px;
-  background: radial-gradient(circle, rgba(255, 106, 61, 0.22), transparent 68%);
-  filter: blur(36px);
+  background: radial-gradient(circle, rgba(255, 122, 69, 0.42), rgba(255, 106, 61, 0.16) 45%, transparent 70%);
+  filter: blur(44px);
   pointer-events: none;
   z-index: 0;
 }
 .glow-data {
   position: absolute;
   border-radius: 9999px;
-  background: radial-gradient(circle, rgba(45, 212, 191, 0.16), transparent 68%);
-  filter: blur(36px);
+  background: radial-gradient(circle, rgba(52, 224, 202, 0.32), rgba(52, 224, 202, 0.12) 45%, transparent 70%);
+  filter: blur(44px);
   pointer-events: none;
   z-index: 0;
+}
+
+/* .glow-accent — drop-in halo for buttons/cards; pulses subtly (motion-safe). */
+.glow-accent {
+  box-shadow: var(--shadow-glow);
+}
+.glow-accent-pulse {
+  box-shadow: var(--shadow-glow);
+  animation: sfGlowPulse 3.2s ease-in-out infinite;
+}
+/* .glow-data-soft — teal box-shadow halo companion (use on in-flow elements;
+   unlike the positioned .glow-data layer, this does not alter position/background). */
+.glow-data-soft {
+  box-shadow: var(--shadow-glow-data);
 }
 
 .bg-grid {
@@ -139,6 +177,164 @@ body {
     linear-gradient(90deg, #ffffff08 1px, transparent 1px);
   background-size: 56px 56px;
   mask-image: radial-gradient(ellipse 90% 60% at 50% 0%, #000 25%, transparent 80%);
+}
+
+/* =========================================================================
+   Glassmorphism — frosted layered surfaces over the dark base.
+   Semi-transparent fill + backdrop blur + a top light highlight (inset) and
+   a hairline border for the "pane of glass" read.
+   ========================================================================= */
+.glass {
+  background: color-mix(in srgb, var(--color-surface) 62%, transparent);
+  backdrop-filter: blur(14px) saturate(1.4);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  border: 1px solid color-mix(in srgb, var(--color-line-2) 70%, transparent);
+  box-shadow: var(--shadow-card), var(--shadow-inner-top);
+}
+.glass-strong {
+  background: color-mix(in srgb, var(--color-surface-2) 78%, transparent);
+  backdrop-filter: blur(22px) saturate(1.5);
+  -webkit-backdrop-filter: blur(22px) saturate(1.5);
+  border: 1px solid color-mix(in srgb, var(--color-line-2) 85%, transparent);
+  box-shadow: var(--shadow-lift), var(--shadow-inner-top);
+}
+
+/* =========================================================================
+   Gradient + ring utilities — accent-driven highlights.
+   ========================================================================= */
+/* .gradient-text — clip an ember→hot gradient onto hero words. */
+.gradient-text {
+  background: linear-gradient(100deg, var(--color-accent), var(--color-accent-2) 55%, var(--color-accent-glow));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+/* .gradient-text-data — ember→teal sweep for "action meets data" headlines. */
+.gradient-text-data {
+  background: linear-gradient(100deg, var(--color-accent), var(--color-data));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* .gradient-border / .ring-accent — hairline gradient outline via a masked
+   pseudo-border (keeps the fill independent of the border paint). */
+.gradient-border {
+  position: relative;
+  border-radius: var(--radius-card);
+}
+.gradient-border::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, var(--color-accent), color-mix(in srgb, var(--color-data) 60%, transparent) 70%, transparent);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+/* Animated variant — the gradient slowly rotates its hue sweep (motion-safe). */
+.gradient-border-anim::before {
+  background: linear-gradient(135deg, var(--color-accent), var(--color-data), var(--color-accent-2), var(--color-accent));
+  background-size: 300% 300%;
+  animation: sfBorderFlow 6s linear infinite;
+}
+.ring-accent {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 55%, transparent);
+}
+
+/* .aurora — soft drifting accent/teal spotlight backdrop for hero panels.
+   Pointer-events none; meant for an absolutely-positioned layer behind content. */
+.aurora {
+  pointer-events: none;
+  background:
+    radial-gradient(40% 50% at 18% 12%, rgba(255, 106, 61, 0.22), transparent 70%),
+    radial-gradient(38% 48% at 82% 8%, rgba(52, 224, 202, 0.16), transparent 70%);
+  filter: blur(8px);
+  animation: sfAurora 14s ease-in-out infinite alternate;
+}
+
+/* =========================================================================
+   Buttons — premium CTAs with gradient fill, glow, and a real press state.
+   text-bg on the accent keeps AA contrast (dark text on bright ember).
+   ========================================================================= */
+.btn-accent {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: var(--radius-lg);
+  padding: 0.625rem 1.1rem;
+  font-weight: 600;
+  color: var(--color-bg);
+  background: linear-gradient(135deg, var(--color-accent-2), var(--color-accent));
+  box-shadow: var(--shadow-glow), var(--shadow-inner-top);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+}
+.btn-accent:hover {
+  filter: brightness(1.06);
+  box-shadow: var(--shadow-glow), 0 10px 28px -8px rgba(255, 106, 61, 0.5);
+  transform: translateY(-1px);
+}
+.btn-accent:active {
+  transform: translateY(0);
+  background: linear-gradient(135deg, var(--color-accent), var(--color-accent-press));
+  box-shadow: var(--shadow-inner-top);
+}
+.btn-accent:disabled { opacity: 0.6; transform: none; box-shadow: none; }
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: var(--radius-lg);
+  padding: 0.625rem 1.1rem;
+  font-weight: 600;
+  color: var(--color-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  transition: color 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+}
+.btn-ghost:hover { color: var(--color-fg); background: color-mix(in srgb, var(--color-surface) 70%, transparent); }
+
+.btn-surface {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: var(--radius-lg);
+  padding: 0.625rem 1.1rem;
+  font-weight: 600;
+  color: var(--color-fg);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-inner-top);
+  transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+}
+.btn-surface:hover { border-color: var(--color-line-2); background: var(--color-surface-3); transform: translateY(-1px); }
+.btn-surface:active { transform: translateY(0); }
+
+/* =========================================================================
+   Cards — encapsulate the rounded-card + border-line + bg-surface idiom
+   with the new elevation. .card-hover adds a lift + accent ring on hover.
+   ========================================================================= */
+.card {
+  border-radius: var(--radius-card);
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card), var(--shadow-inner-top);
+}
+.card-hover {
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s ease, border-color 0.22s ease;
+}
+.card-hover:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--color-accent) 45%, var(--color-line-2));
+  box-shadow: var(--shadow-lift), var(--shadow-inner-top), 0 0 0 1px color-mix(in srgb, var(--color-accent) 30%, transparent);
 }
 
 .media-treat {
@@ -185,12 +381,46 @@ body {
 }
 .sf-grow { transform-origin: bottom; animation: sfGrow 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
+/* ---- Decorative loops (motion-safe; disabled under reduced-motion) ---- */
+/* Breathing glow for .glow-accent-pulse / accent highlights. */
+@keyframes sfGlowPulse {
+  0%, 100% { box-shadow: var(--shadow-glow); }
+  50% { box-shadow: 0 0 0 1px rgba(255, 106, 61, 0.4), 0 12px 40px -4px rgba(255, 106, 61, 0.55); }
+}
+/* Travelling gradient for animated gradient borders. */
+@keyframes sfBorderFlow {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 300% 50%; }
+}
+/* Slow drift for the .aurora spotlight backdrop. */
+@keyframes sfAurora {
+  0% { transform: translate3d(-2%, -1%, 0) scale(1); opacity: 0.85; }
+  100% { transform: translate3d(2%, 1%, 0) scale(1.08); opacity: 1; }
+}
+/* Subtle shimmer sweep for skeletons/highlights (opt-in). */
+@keyframes sfShimmer {
+  0% { background-position: -150% 0; }
+  100% { background-position: 250% 0; }
+}
+.shimmer {
+  background: linear-gradient(100deg, transparent 20%, color-mix(in srgb, var(--color-fg) 8%, transparent) 50%, transparent 80%);
+  background-size: 200% 100%;
+  animation: sfShimmer 2.4s linear infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
+  }
+  /* Kill the decorative loops outright so they hold a static, calm frame. */
+  .glow-accent-pulse,
+  .gradient-border-anim::before,
+  .aurora,
+  .shimmer {
+    animation: none !important;
   }
 }
 
@@ -219,15 +449,27 @@ body {
   --color-data: #0e8c7e;
   --color-data-dim: #e2f1ee;
   --color-prose: #2e333a;
+  --color-accent-glow: #d24a22;
 
   --color-ok: #15803d;
   --color-warn: #b45309;
   --color-hard: #b91c1c;
 
+  /* Soften elevation for a paper-light reading surface (no heavy black drop). */
+  --shadow-card: 0 1px 2px rgba(20, 20, 20, 0.06), 0 6px 18px -10px rgba(20, 20, 20, 0.18);
+  --shadow-lift: 0 2px 6px rgba(20, 20, 20, 0.08), 0 16px 36px -14px rgba(20, 20, 20, 0.22);
+  --shadow-inner-top: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+
   background-color: var(--color-bg);
   color: var(--color-fg);
 }
 .theme-editorial ::selection { background: var(--color-accent-dim); }
+/* Glass over a light page reads as a tinted frosted card, not a dark pane. */
+.theme-editorial .glass,
+.theme-editorial .glass-strong {
+  background: color-mix(in srgb, var(--color-surface) 80%, transparent);
+  border-color: var(--color-line-2);
+}
 
 /* =========================================================================
    Print — ink-friendly workout sheet. Flip tokens to grayscale, drop chrome.
@@ -250,6 +492,44 @@ body {
     --color-data: #000;
     --color-data-dim: #eee;
     --color-prose: #000;
+    --color-accent-glow: #000;
+    /* Flatten every elevation/glow token to nothing for ink-clean output. */
+    --shadow-card: none;
+    --shadow-lift: none;
+    --shadow-glow: none;
+    --shadow-glow-data: none;
+    --shadow-inner-top: none;
+  }
+  /* Strip the bold-modern decoration entirely: no glass, no glow, no gradient. */
+  .glass,
+  .glass-strong,
+  .card,
+  .card-hover,
+  .btn-accent,
+  .btn-surface,
+  .glow-accent,
+  .glow-accent-pulse,
+  .glow-data-soft,
+  .ring-accent {
+    background: #fff !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    box-shadow: none !important;
+    color: #000 !important;
+  }
+  .gradient-text,
+  .gradient-text-data {
+    -webkit-background-clip: border-box !important;
+    background-clip: border-box !important;
+    background: none !important;
+    color: #000 !important;
+  }
+  .glow-ember,
+  .glow-data,
+  .aurora,
+  .gradient-border::before,
+  .gradient-border-anim::before {
+    display: none !important;
   }
   .grain,
   header,

@@ -22,7 +22,7 @@ export function TodayCard({ maps }: { maps: Maps }) {
 
   if (!weekday) {
     // Pre-hydration placeholder keeps layout stable (no CLS).
-    return <div className="rounded-card border border-line bg-surface p-5" style={{ minHeight: 132 }} aria-hidden />;
+    return <div className="card p-5" style={{ minHeight: 132 }} aria-hidden />;
   }
 
   const b = maps.beginner[weekday];
@@ -30,9 +30,9 @@ export function TodayCard({ maps }: { maps: Maps }) {
   const isRest = !b && !i;
 
   return (
-    <div className="rounded-card border border-line bg-surface p-5">
+    <div className="glass p-5">
       <div className="flex items-baseline justify-between">
-        <span className="eyebrow">today · {weekday}</span>
+        <span className="eyebrow-accent">today · {weekday}</span>
         {isRest && <span className="eyebrow text-data">rest day</span>}
       </div>
 
@@ -53,7 +53,7 @@ export function TodayCard({ maps }: { maps: Maps }) {
               <Link
                 key={pid}
                 href={dayHref(pid, 1, hit.slug)}
-                className="group flex items-center justify-between gap-3 rounded-lg border border-line bg-bg px-4 py-3 transition-colors hover:border-accent"
+                className="card card-hover group flex items-center justify-between gap-3 px-4 py-3"
               >
                 <span>
                   <span className="block font-display font-semibold text-fg group-hover:text-accent">{hit.focus}</span>

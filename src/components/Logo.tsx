@@ -27,7 +27,7 @@ export function Logo({ size = 26 }: { size?: number }) {
         className="font-display font-bold tracking-tight text-fg"
         style={{ fontSize: size * 0.64 }}
       >
-        Score<span className="text-accent">Fit</span>
+        Score<span className="gradient-text">Fit</span>
       </span>
     </Link>
   );
