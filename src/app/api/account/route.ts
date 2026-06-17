@@ -70,7 +70,7 @@ export async function PATCH(req: Request) {
 
   if (name !== undefined) await setName(user.id, name);
   // Switching units converts stored loads so the same physical weight is preserved.
-  if (unit !== undefined && unit !== user.unit) await changeUnit(user.id, user.unit, unit);
+  if (unit !== undefined && unit !== user.unit) await changeUnit(user.id, user.unit as "kg" | "lb", unit);
   if (timezone !== undefined && timezone !== user.timezone) await setTimezone(user.id, timezone);
   if (leaderboardOptIn !== undefined || displayName !== undefined || birthYear !== undefined) {
     await updateLeaderboardProfile(user.id, { optIn: leaderboardOptIn, displayName, birthYear });
