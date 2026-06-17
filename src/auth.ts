@@ -93,6 +93,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           email: user.email,
           name: user.name ?? undefined,
           unit: user.unit as "kg" | "lb",
+          timezone: user.timezone,
           verified: !!user.emailVerified,
           tokenVersion: user.tokenVersion,
         };
@@ -106,12 +107,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async jwt({ token, user, trigger }) {
       const t = token as typeof token & {
         unit?: "kg" | "lb";
+        tz?: string;
         verified?: boolean;
         ver?: number;
         verAt?: number;
       };
       if (user) {
         t.unit = (user as { unit?: "kg" | "lb" }).unit ?? "kg";
+        t.tz = (user as { timezone?: string }).timezone ?? "UTC";
         t.verified = (user as { verified?: boolean }).verified ?? false;
         t.ver = (user as { tokenVersion?: number }).tokenVersion ?? 0;
         t.verAt = Date.now();
@@ -129,6 +132,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           fresh = await db
             .select({
               unit: users.unit,
+              timezone: users.timezone,
               emailVerified: users.emailVerified,
               email: users.email,
               tokenVersion: users.tokenVersion,
@@ -154,6 +158,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!fresh[0]) return null;
         if (fresh[0].tokenVersion !== (t.ver ?? 0)) return null;
         t.unit = fresh[0].unit as "kg" | "lb";
+        t.tz = fresh[0].timezone ?? "UTC";
         t.verified = !!fresh[0].emailVerified;
         t.email = fresh[0].email;
         t.ver = fresh[0].tokenVersion;
@@ -164,9 +169,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     // Auth.js sets token.sub to the user id on sign-in; expose it on the session.
     async session({ session, token }) {
       if (session.user && token.sub) {
-        const t = token as { sub?: string; unit?: "kg" | "lb"; verified?: boolean };
+        const t = token as { sub?: string; unit?: "kg" | "lb"; tz?: string; verified?: boolean };
         session.user.id = token.sub;
         session.user.unit = t.unit ?? "kg";
+        session.user.timezone = t.tz ?? "UTC";
         session.user.verified = t.verified ?? false;
       }
       return session;

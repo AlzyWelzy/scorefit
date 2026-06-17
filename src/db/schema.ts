@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, real, boolean, timestamp, unique, index } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, integer, real, boolean, timestamp, date, unique, index } from "drizzle-orm/pg-core";
 import { newId } from "../lib/ids";
 
 // Every `id` is a ULID rendered into a native Postgres `uuid` column (16-byte,
@@ -33,6 +33,13 @@ export const users = pgTable("users", {
   // Address awaiting verification during an email change. The current (verified)
   // email is kept until the new address is confirmed via an emailed code.
   pendingEmail: text("pending_email"),
+  // Gamification foundation. timezone (IANA) buckets sessions/streaks into the
+  // user's LOCAL calendar; weekStartsOn anchors the training week (1=Mon);
+  // goalSessionsPerWeek is an optional flexible target that overrides the
+  // program-prescribed session count when set.
+  timezone: text("timezone").notNull().default("UTC"),
+  weekStartsOn: integer("week_starts_on").notNull().default(1),
+  goalSessionsPerWeek: integer("goal_sessions_per_week"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -96,7 +103,44 @@ export const workoutLogs = pgTable(
   ],
 );
 
+// Derived dated-session projection: one row per training day a user worked, rolled
+// up from completed workout_logs on each write. THE date-anchored entity the whole
+// gamification layer (streaks, leaderboards, feeds, achievements) reads from instead
+// of scanning the mutable workout_logs.updatedAt. sessionDate is the user's LOCAL
+// date, FROZEN on first write (later edits never move it). qualifies marks the
+// honesty floor so a single stray tap can't bank a day. Keyed by the program-day
+// (matching how logs are coordinate-keyed); sessionDate is the calendar stamp.
+export const workoutSessions = pgTable(
+  "workout_sessions",
+  {
+    id: uuid("id").primaryKey().$defaultFn(newId),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    program: text("program", { enum: ["beginner", "intermediate"] }).notNull(),
+    week: integer("week").notNull(),
+    daySlug: text("day_slug").notNull(),
+    sessionDate: date("session_date", { mode: "string" }).notNull(), // user-local, frozen on first write
+    distinctExercises: integer("distinct_exercises").notNull().default(0),
+    completedSets: integer("completed_sets").notNull().default(0),
+    prescribedSets: integer("prescribed_sets").notNull().default(0),
+    tonnage: real("tonnage").notNull().default(0), // Σ completed weight×reps
+    bestE1rm: real("best_e1rm"), // best Epley e1RM in the session, null if none gradeable
+    qualifies: boolean("qualifies").notNull().default(false), // ≥3 sets OR ≥2 distinct exercises
+    committedAt: timestamp("committed_at", { withTimezone: true }), // set when the user taps "finish"
+    backfilled: boolean("backfilled").notNull().default(false), // synthesized from history, date is approximate
+    firstAt: timestamp("first_at", { withTimezone: true }),
+    lastAt: timestamp("last_at", { withTimezone: true }),
+  },
+  (t) => [
+    unique("uq_session_coords").on(t.userId, t.program, t.week, t.daySlug),
+    index("idx_session_user_date").on(t.userId, t.sessionDate),
+  ],
+);
+
 export type User = typeof users.$inferSelect;
+export type WorkoutSession = typeof workoutSessions.$inferSelect;
+export type NewWorkoutSession = typeof workoutSessions.$inferInsert;
 export type WorkoutLog = typeof workoutLogs.$inferSelect;
 export type NewWorkoutLog = typeof workoutLogs.$inferInsert;
 export type VerificationToken = typeof verificationTokens.$inferSelect;

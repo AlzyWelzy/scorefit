@@ -82,6 +82,53 @@ export function getWeek(programId: string, weekNumber: number) {
   return p.weeks.find((w) => w.number === weekNumber) ?? null;
 }
 
+export type WeekCoordinateExercise = {
+  slug: string;
+  name: string;
+  sets: number;
+  reps: string | null;
+  lastRPE: string | null;
+};
+export type WeekCoordinateDay = { slug: string; title: string; exercises: WeekCoordinateExercise[] };
+export type WeekCoordinates = {
+  /** Days with collision-free slugs and per-exercise prescribed set counts. */
+  days: WeekCoordinateDay[];
+  /** Total prescribed working sets across the week. */
+  prescribedSets: number;
+  /** One key `${daySlug}|${exerciseSlug}|${setIndex}` per prescribed working set. */
+  coordKeys: Set<string>;
+};
+
+/**
+ * Canonical coordinate space for one program-week: normalizes day slugs (so
+ * repeated slugs within a week don't collide), parses each exercise's set count,
+ * and enumerates the valid `${daySlug}|${exerciseSlug}|${setIndex}` keys. The
+ * single source the logger, the progress page, and the session roll-up all read,
+ * so the slug/set math never drifts between them.
+ */
+export function buildWeekCoordinates(programId: ProgramId, weekNumber: number): WeekCoordinates {
+  const w = getWeek(programId, weekNumber);
+  if (!w) return { days: [], prescribedSets: 0, coordKeys: new Set() };
+
+  const rawSlugs = w.days.map((d) => d.slug);
+  const days: WeekCoordinateDay[] = [];
+  const coordKeys = new Set<string>();
+  let prescribedSets = 0;
+
+  w.days.forEach((d, di) => {
+    const slug = uniqueDaySlug(d.slug, di, rawSlugs);
+    const exercises = d.exercises.map((ex) => {
+      const sets = parseSets(ex.workingSets);
+      prescribedSets += sets;
+      for (let i = 1; i <= sets; i++) coordKeys.add(`${slug}|${ex.slug}|${i}`);
+      return { slug: ex.slug, name: ex.name, sets, reps: ex.reps ?? null, lastRPE: ex.lastRPE ?? null };
+    });
+    days.push({ slug, title: d.title, exercises });
+  });
+
+  return { days, prescribedSets, coordKeys };
+}
+
 // slug → entry lookup maps, built once at module load instead of a linear
 // scan on every call (hot on /exercises, /log, the search index, etc.).
 const exerciseBySlug = new Map<string, (typeof exerciseLibrary)[number]>(

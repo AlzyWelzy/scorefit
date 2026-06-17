@@ -2,16 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { getProgramOrThrow, isProgramId, parseSets, uniqueDaySlug, PROGRAM_META, type ProgramId } from "@/lib/data";
+import { buildWeekCoordinates, getProgramOrThrow, isProgramId, PROGRAM_META, type ProgramId } from "@/lib/data";
 import { getLogsForProgram } from "@/db/logs";
+import { e1rm } from "@/lib/strength";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = { title: "Progress", alternates: { canonical: "/progress" } };
-
-// Epley estimated 1-rep max.
-const e1rm = (weight: number, reps: number) => weight * (1 + reps / 30);
 
 export default async function ProgressPage({
   searchParams,
@@ -28,21 +26,16 @@ export default async function ProgressPage({
   const logs = await getLogsForProgram(session.user.id, program);
 
   // Valid prescription coordinates per week, so stale logs (after a program
-  // edit) don't push "done" above "prescribed".
+  // edit) don't push "done" above "prescribed". Shares buildWeekCoordinates with
+  // /log and the session roll-up so the slug/set math never diverges.
   const prescribed = new Map<number, number>();
   const validCoords = new Set<string>();
+  const nameBySlug = new Map<string, string>();
   for (const w of prog.weeks) {
-    let count = 0;
-    const rawSlugs = w.days.map((d) => d.slug);
-    w.days.forEach((d, di) => {
-      const daySlug = uniqueDaySlug(d.slug, di, rawSlugs);
-      for (const ex of d.exercises) {
-        const sets = parseSets(ex.workingSets);
-        count += sets;
-        for (let i = 1; i <= sets; i++) validCoords.add(`${w.number}|${daySlug}|${ex.slug}|${i}`);
-      }
-    });
-    prescribed.set(w.number, count);
+    const wc = buildWeekCoordinates(program, w.number);
+    prescribed.set(w.number, wc.prescribedSets);
+    for (const key of wc.coordKeys) validCoords.add(`${w.number}|${key}`);
+    for (const d of wc.days) for (const ex of d.exercises) nameBySlug.set(ex.slug, ex.name);
   }
 
   const done = new Map<number, number>();
@@ -70,10 +63,6 @@ export default async function ProgressPage({
   const totalDone = Array.from(done.values()).reduce((a, b) => a + b, 0);
   const totalPrescribed = Array.from(prescribed.values()).reduce((a, b) => a + b, 0);
   const totalTonnage = Array.from(tonnage.values()).reduce((a, b) => a + b, 0);
-
-  // Map slug → display name for the PR list.
-  const nameBySlug = new Map<string, string>();
-  for (const w of prog.weeks) for (const d of w.days) for (const ex of d.exercises) nameBySlug.set(ex.slug, ex.name);
 
   const prs = Array.from(bestByExercise.entries())
     .map(([slug, b]) => ({ name: nameBySlug.get(slug) ?? slug, ...b }))

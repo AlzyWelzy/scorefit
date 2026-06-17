@@ -34,6 +34,9 @@ const postSchema = z.object({
   reps: z.number().int().min(0).max(1000).nullable().optional(),
   rpe: z.number().min(0).max(10).nullable().optional(),
   completed: z.boolean().optional(),
+  // Client record-time, used (clamped) to freeze the session's calendar date so an
+  // offline set that flushes after midnight isn't mis-dated. Optional/untrusted.
+  loggedAt: z.string().datetime().optional(),
 });
 
 export async function POST(req: Request) {
@@ -49,6 +52,10 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid log payload" }, { status: 400 });
   }
-  const row = await upsertSetLog(session.user.id, parsed.data);
+  const { loggedAt, ...logInput } = parsed.data;
+  const row = await upsertSetLog(session.user.id, logInput, {
+    timezone: session.user.timezone,
+    loggedAt,
+  });
   return NextResponse.json({ log: row }, { status: 200 });
 }

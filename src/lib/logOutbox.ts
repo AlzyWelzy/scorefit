@@ -14,6 +14,10 @@ export type SetPayload = {
   reps: number | null;
   rpe: number | null;
   completed: boolean;
+  // Client record-time (ISO). Stamped when the set is recorded, then persisted in
+  // the outbox, so the server can freeze the session's calendar date to when the
+  // user actually trained — not when a flaky-signal flush finally reaches it.
+  loggedAt: string;
 };
 
 export type SaveState = "saving" | "saved" | "queued" | "error";

@@ -1,6 +1,7 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { workoutLogs, type WorkoutLog } from "@/db/schema";
+import { syncSessionForLog } from "@/db/sessions";
 import type { ProgramId } from "@/lib/data";
 
 // Thin repository so the persistence layer stays swappable behind these calls.
@@ -81,7 +82,11 @@ export async function getPreviousLoads(
   return out;
 }
 
-export async function upsertSetLog(userId: string, input: SetLogInput): Promise<WorkoutLog> {
+export async function upsertSetLog(
+  userId: string,
+  input: SetLogInput,
+  ctx: { timezone?: string; loggedAt?: string } = {},
+): Promise<WorkoutLog> {
   const [row] = await db
     .insert(workoutLogs)
     .values({
@@ -115,5 +120,19 @@ export async function upsertSetLog(userId: string, input: SetLogInput): Promise<
     })
     .returning();
   if (!row) throw new Error("upsertSetLog: insert returned no row");
+
+  // Maintain the derived dated-session projection (the foundation streaks /
+  // leaderboards / feeds read from). Best-effort: the set is already saved, and a
+  // failure here must never fail the write — a reconcile job can rebuild sessions
+  // from workout_logs if this drifts.
+  try {
+    await syncSessionForLog(userId, input.program, input.week, input.daySlug, {
+      tz: ctx.timezone,
+      loggedAt: ctx.loggedAt,
+    });
+  } catch (err) {
+    console.error("[sessions] sync failed", { userId, program: input.program, week: input.week, daySlug: input.daySlug }, err);
+  }
+
   return row;
 }

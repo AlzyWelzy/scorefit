@@ -103,6 +103,9 @@ export function Logger({
       reps: c.reps === "" ? null : Number(c.reps),
       rpe: c.rpe === "" ? null : Number(c.rpe),
       completed: c.completed,
+      // Record-time, captured now so an offline set that flushes later (even after
+      // midnight) still dates its session to when it was actually performed.
+      loggedAt: new Date().toISOString(),
     }),
     [program, week],
   );
