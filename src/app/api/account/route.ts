@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { auth } from "@/auth";
-import { getUserById, setName, setPendingEmail, setPasswordHash, setUnit, emailExists } from "@/db/users";
+import { getUserById, setName, setPendingEmail, setPasswordHash, setUnit, setTimezone, emailExists } from "@/db/users";
 import { issueToken } from "@/db/tokens";
 import { sendVerificationCode } from "@/lib/mailer";
 import { sameOrigin, rateLimit, clientIp } from "@/lib/rateLimit";
+import { isValidTimeZone } from "@/lib/time";
 
 export const runtime = "nodejs";
 
@@ -13,6 +14,9 @@ const patchSchema = z.object({
   name: z.string().trim().min(1).max(80).nullable().optional(),
   email: z.email().optional(),
   unit: z.enum(["kg", "lb"]).optional(),
+  // IANA timezone, captured client-side and refined server-side (must be a real
+  // zone). Non-sensitive; used to bucket sessions/streaks into the local day.
+  timezone: z.string().min(1).max(64).optional(),
   // Required only when changing email or password.
   currentPassword: z.string().optional(),
   newPassword: z.string().min(8).optional(),
@@ -31,7 +35,10 @@ export async function PATCH(req: Request) {
       { status: 400 },
     );
   }
-  const { name, email, unit, currentPassword, newPassword } = parsed.data;
+  const { name, email, unit, timezone, currentPassword, newPassword } = parsed.data;
+  if (timezone !== undefined && !isValidTimeZone(timezone)) {
+    return NextResponse.json({ error: "Invalid timezone." }, { status: 400 });
+  }
   const user = await getUserById(session.user.id);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -47,6 +54,7 @@ export async function PATCH(req: Request) {
 
   if (name !== undefined) await setName(user.id, name);
   if (unit !== undefined) await setUnit(user.id, unit);
+  if (timezone !== undefined && timezone !== user.timezone) await setTimezone(user.id, timezone);
 
   if (newPassword !== undefined) {
     await setPasswordHash(user.id, await bcrypt.hash(newPassword, 12));

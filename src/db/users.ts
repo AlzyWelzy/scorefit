@@ -97,6 +97,10 @@ export async function setUnit(id: string, unit: "kg" | "lb"): Promise<void> {
   await db.update(users).set({ unit }).where(eq(users.id, id));
 }
 
+export async function setTimezone(id: string, timezone: string): Promise<void> {
+  await db.update(users).set({ timezone }).where(eq(users.id, id));
+}
+
 export async function markEmailVerified(id: string): Promise<void> {
   await db.update(users).set({ emailVerified: new Date() }).where(eq(users.id, id));
 }

@@ -6,6 +6,7 @@ import { Footer } from "@/components/Footer";
 import { CommandPaletteMount } from "@/components/CommandPaletteMount";
 import { AuthSessionProvider } from "@/components/auth/AuthSessionProvider";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
+import { TimezoneSync } from "@/components/TimezoneSync";
 import { VerifyBanner } from "@/components/auth/VerifyBanner";
 
 const hanken = Hanken_Grotesk({
@@ -104,6 +105,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Footer />
           <CommandPaletteMount />
           <ServiceWorkerRegister />
+          <TimezoneSync />
         </AuthSessionProvider>
       </body>
     </html>
