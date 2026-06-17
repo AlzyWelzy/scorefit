@@ -4,7 +4,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { verificationTokens } from "@/db/schema";
 
-export type TokenPurpose = "email_verify" | "password_reset" | "two_factor";
+export type TokenPurpose = "email_verify" | "email_change" | "password_reset" | "two_factor";
 
 const TTL_MS = 10 * 60 * 1000; // 10 minutes
 const MAX_ATTEMPTS = 5;

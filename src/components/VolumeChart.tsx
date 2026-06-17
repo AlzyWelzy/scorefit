@@ -19,13 +19,20 @@ const MAX = 120;
 export function VolumeChart({ compact = false }: { compact?: boolean }) {
   const rowH = compact ? 120 : 180;
   const maxBar = rowH - 22;
+  // Text alternative so the chart isn't conveyed by bar height/colour alone.
+  const summary =
+    "Weekly training volume in sets per week over 12 weeks: " +
+    WEEKS.map(
+      (w) => `week ${w.wk} ${w.sets}${w.deload ? " (deload)" : ""} ${w.block === "F" ? "foundation" : "ramping"}`,
+    ).join(", ") +
+    ".";
   return (
     <div className="rounded-card border border-line bg-surface p-5">
       <div className="mb-5 flex items-baseline justify-between">
         <h3 className="font-display text-lg font-semibold">Weekly volume ramp</h3>
         <span className="eyebrow">sets / week</span>
       </div>
-      <div className="flex items-end gap-1.5" style={{ height: rowH }}>
+      <div className="flex items-end gap-1.5" style={{ height: rowH }} role="img" aria-label={summary}>
         {WEEKS.map((w, i) => {
           const barPx = Math.round((w.sets / MAX) * maxBar);
           const color = w.block === "R" ? "var(--color-accent)" : "var(--color-faint)";

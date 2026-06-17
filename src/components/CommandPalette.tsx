@@ -39,16 +39,19 @@ export function CommandPalette({ index }: { index: SearchEntry[] }) {
 
   const results = useMemo(() => {
     const query = q.trim().toLowerCase();
-    if (!query) {
-      // default: a few of each kind so the palette isn't empty
-      return index.slice(0, 8);
-    }
-    return index
-      .map((e) => ({ e, s: score(e, query) }))
-      .filter((x) => x.s >= 0)
-      .sort((a, b) => b.s - a.s || a.e.title.localeCompare(b.e.title))
-      .slice(0, 40)
-      .map((x) => x.e);
+    const base = !query
+      ? // default: a few of each kind so the palette isn't empty
+        index.slice(0, 8)
+      : index
+          .map((e) => ({ e, s: score(e, query) }))
+          .filter((x) => x.s >= 0)
+          .sort((a, b) => b.s - a.s || a.e.title.localeCompare(b.e.title))
+          .slice(0, 40)
+          .map((x) => x.e);
+    // Order by display group (KIND_ORDER) so the flat index used by arrow-key
+    // navigation + aria-activedescendant matches the visually grouped list.
+    // Array.sort is stable, so the score order is preserved within each kind.
+    return [...base].sort((a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind));
   }, [q, index]);
 
   // index lookup by entry id (perf + correctness vs results.indexOf)
@@ -117,7 +120,7 @@ export function CommandPalette({ index }: { index: SearchEntry[] }) {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-start justify-center px-4 pt-[12vh]"
+      className="fixed inset-0 z-100 flex items-start justify-center px-4 pt-[12vh]"
       role="dialog"
       aria-modal="true"
       aria-label="Search ScoreFit"

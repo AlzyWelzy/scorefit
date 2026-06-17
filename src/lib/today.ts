@@ -19,7 +19,9 @@ export function weekdayDayMap(programId: ProgramId, week = 1): Record<string, Da
     if (!wd) continue;
     // focus = the part after the em dash, sans parenthetical
     const focus = (d.title.split("—")[1] ?? "").replace(/\(.*?\)/g, "").trim() || d.title;
-    map[wd] = { slug: d.slug, title: d.title, focus };
+    // First match wins (deterministic): if two days share a weekday prefix, keep
+    // the earlier one rather than letting row order decide.
+    if (!map[wd]) map[wd] = { slug: d.slug, title: d.title, focus };
   }
   return map;
 }

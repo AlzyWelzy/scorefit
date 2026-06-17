@@ -10,6 +10,7 @@ import { users } from "@/db/schema";
 import { rateLimit, clientIp } from "@/lib/rateLimit";
 import { verifyTotp, decryptSecret } from "@/lib/totp";
 import { verifyToken } from "@/db/tokens";
+import { advanceTotpStep } from "@/db/users";
 import { consumeBackupCode } from "@/db/twoFactor";
 import { verifyPending, PENDING_2FA_COOKIE } from "@/lib/pending2fa";
 
@@ -28,7 +29,13 @@ async function verifySecondFactor(
   const clean = code.trim();
   if (user.twoFactorMethod === "totp" && user.totpSecret) {
     try {
-      if (verifyTotp(decryptSecret(user.totpSecret), clean)) return true;
+      const step = verifyTotp(decryptSecret(user.totpSecret), clean);
+      // Single-use: advanceTotpStep atomically rejects a step that isn't newer
+      // than the last accepted one, so a captured code can't be replayed (even
+      // by two concurrent requests racing within the drift window).
+      if (step !== null && (await advanceTotpStep(user.id, step))) {
+        return true;
+      }
     } catch {
       /* fall through */
     }
@@ -57,7 +64,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const { email, password, code } = parsed.data;
         // Throttle credential checks: 10 attempts / 10 min per IP+email.
         const ip = await clientIp();
-        const rl = await rateLimit("login", `${ip}:${email.toLowerCase()}`, 10, 10 * 60 * 1000);
+        const rl = await rateLimit("login", `${ip}:${email.toLowerCase()}`, 10, 10 * 60 * 1000, {
+          failClosed: true,
+        });
         if (!rl.ok) return null;
         const rows = await db
           .select()
@@ -87,36 +96,66 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           name: user.name ?? undefined,
           unit: user.unit as "kg" | "lb",
           verified: !!user.emailVerified,
+          tokenVersion: user.tokenVersion,
         };
       },
     }),
   ],
   callbacks: {
     ...authConfig.callbacks,
-    // Persist unit + verification on the token at sign-in; refresh on update().
+    // Persist unit + verification + session version on the token at sign-in;
+    // refresh on update() and on a bounded cadence (for revocation).
     async jwt({ token, user, trigger }) {
-      const t = token as typeof token & { unit?: "kg" | "lb"; verified?: boolean };
+      const t = token as typeof token & {
+        unit?: "kg" | "lb";
+        verified?: boolean;
+        ver?: number;
+        verAt?: number;
+      };
       if (user) {
         t.unit = (user as { unit?: "kg" | "lb" }).unit ?? "kg";
         t.verified = (user as { verified?: boolean }).verified ?? false;
+        t.ver = (user as { tokenVersion?: number }).tokenVersion ?? 0;
+        t.verAt = Date.now();
       }
-      // Re-read from the DB when:
-      //  - the client called useSession().update() (unit/email changes), OR
-      //  - the token still says unverified (so a verification done in another
-      //    tab/device propagates without an explicit update() or re-login).
-      // Once verified=true this branch stops running, so it's a bounded cost.
-      const needsRefresh = trigger === "update" || t.verified === false || t.verified === undefined;
+      // Re-read from the DB at most once per STALE_MS (or on an explicit
+      // update()), so a password change — which bumps tokenVersion — revokes the
+      // session within ~5 min at bounded cost. The read is wrapped so a transient
+      // DB blip can't throw out of the callback and break auth site-wide.
+      const STALE_MS = 5 * 60 * 1000;
+      const needsRefresh =
+        trigger === "update" || t.verAt === undefined || Date.now() - t.verAt > STALE_MS;
       if (needsRefresh && t.sub) {
-        const fresh = await db
-          .select({ unit: users.unit, emailVerified: users.emailVerified, email: users.email })
-          .from(users)
-          .where(eq(users.id, t.sub))
-          .limit(1);
-        if (fresh[0]) {
-          t.unit = fresh[0].unit as "kg" | "lb";
-          t.verified = !!fresh[0].emailVerified;
-          t.email = fresh[0].email;
+        let fresh;
+        try {
+          fresh = await db
+            .select({
+              unit: users.unit,
+              emailVerified: users.emailVerified,
+              email: users.email,
+              tokenVersion: users.tokenVersion,
+            })
+            .from(users)
+            .where(eq(users.id, t.sub))
+            .limit(1);
+        } catch {
+          // Infrastructure error (pool/replica hiccup) — fail OPEN for
+          // availability: keep the existing token and retry on the next cycle.
+          return t;
         }
+        // The read above succeeded (infra errors throw and are caught), so these
+        // results are definitive. Revoke (Auth.js signs out on a null token) when:
+        //  - the row is gone → the account was deleted, OR
+        //  - tokenVersion changed → a password/email change since this token was
+        //    minted. Legacy/pre-deploy tokens have ver=undefined → compared as 0,
+        //    the post-migration default, so any later change still revokes them.
+        if (!fresh[0]) return null;
+        if (fresh[0].tokenVersion !== (t.ver ?? 0)) return null;
+        t.unit = fresh[0].unit as "kg" | "lb";
+        t.verified = !!fresh[0].emailVerified;
+        t.email = fresh[0].email;
+        t.ver = fresh[0].tokenVersion;
+        t.verAt = Date.now();
       }
       return t;
     },

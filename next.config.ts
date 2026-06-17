@@ -1,11 +1,17 @@
 import type { NextConfig } from "next";
 
-// Baseline CSP. 'unsafe-inline' is needed for Next's inline bootstrap/styles and
-// our JSON-LD; tighten with nonces later if desired. YouTube hosts are allow-
-// listed for the click-to-play demo embeds and thumbnails.
+// Baseline CSP. 'unsafe-inline' is retained for scripts because every page is
+// statically prerendered: a nonce/hash-based policy would require per-request
+// rendering (reading headers()), which would convert all ~98 static pages to
+// dynamic — a worse trade than the marginal hardening, especially as our only
+// user-influenced HTML goes through react-markdown (no raw HTML). 'unsafe-eval'
+// is dropped in production (only dev tooling needs it). YouTube hosts are
+// allow-listed for the click-to-play demo embeds and thumbnails.
+const isDev = process.env.NODE_ENV !== "production";
+const scriptSrc = ["'self'", "'unsafe-inline'", isDev ? "'unsafe-eval'" : ""].filter(Boolean).join(" ");
 const csp = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  `script-src ${scriptSrc}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://i.ytimg.com https://img.youtube.com",
   "font-src 'self' data:",

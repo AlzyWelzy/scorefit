@@ -2,12 +2,14 @@
 // single instance / dev); if UPSTASH_REDIS_REST_URL + _TOKEN are set we use
 // Upstash's REST API so it works across serverless instances.
 //
-// Returns { ok, remaining, retryAfter }. Fails OPEN on limiter errors so a
-// limiter outage never locks legitimate users out.
+// Returns { ok, remaining, retryAfter }. On a limiter error it fails OPEN by
+// default, but auth-critical callers pass { failClosed: true } so a limiter
+// outage can't open a brute-force window.
 
 import { headers } from "next/headers";
 
 export type RateResult = { ok: boolean; remaining: number; retryAfter: number };
+export type RateOptions = { failClosed?: boolean };
 
 const buckets = new Map<string, { count: number; resetAt: number }>();
 
@@ -58,7 +60,13 @@ async function upstashLimit(
   });
   if (!res.ok) throw new Error(`upstash ${res.status}`);
   const out = (await res.json()) as { result: unknown }[];
-  const count = Number(out[0]?.result ?? 0);
+  // A degraded 200 with a malformed/partial body must be treated as a limiter
+  // failure (→ fail-closed for auth buckets), NOT coalesced to count 0 = allow.
+  const rawCount = out[0]?.result;
+  if (typeof rawCount !== "number" || !Number.isFinite(rawCount)) {
+    throw new Error("upstash malformed pipeline result");
+  }
+  const count = rawCount;
   const ttl = Number(out[2]?.result ?? windowSec);
   if (count > limit) {
     return { ok: false, remaining: 0, retryAfter: ttl > 0 ? ttl : windowSec };
@@ -72,21 +80,36 @@ async function upstashLimit(
  * @param limit  max requests per window
  * @param windowMs window length in ms
  */
+let warnedUnshared = false;
+function warnIfUnsharedInProd() {
+  if (warnedUnshared || process.env.NODE_ENV !== "production") return;
+  warnedUnshared = true;
+  console.warn(
+    "[rateLimit] No UPSTASH_REDIS_REST_URL/_TOKEN set — rate limiting is in-memory and per-instance, " +
+      "so it is ineffective across serverless/multi-instance deployments. Configure Upstash for production.",
+  );
+}
+
 export async function rateLimit(
   name: string,
   id: string,
   limit: number,
   windowMs: number,
+  opts?: RateOptions,
 ): Promise<RateResult> {
   const key = `rl:${name}:${id}`;
   try {
     if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
       return await upstashLimit(key, limit, windowMs);
     }
+    warnIfUnsharedInProd();
     return memoryLimit(key, limit, windowMs);
   } catch {
-    // Fail open — never block a real user because the limiter is down.
-    return { ok: true, remaining: limit, retryAfter: 0 };
+    // Auth-critical callers fail CLOSED (deny) so a limiter outage can't open a
+    // brute-force window; everything else fails OPEN to not block real users.
+    return opts?.failClosed
+      ? { ok: false, remaining: 0, retryAfter: Math.ceil(windowMs / 1000) }
+      : { ok: true, remaining: limit, retryAfter: 0 };
   }
 }
 

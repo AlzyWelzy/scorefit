@@ -20,11 +20,12 @@ const ORDER: Archetype[] = [
 export default function ExercisesPage() {
   // Render each card on the server (ExerciseImage uses fs at build), then hand
   // the nodes to the client filter — which only reads archetype/equipment.
-  const cards: CardItem[] = exerciseLibrary.map((ex) => ({
+  const cards: CardItem[] = exerciseLibrary.map((ex, i) => ({
     slug: ex.slug,
     archetype: archetypeFor(ex.name),
     equipment: equipmentFor(ex.name),
-    node: <ExerciseLibraryCard ex={ex} />,
+    // Eager-load the first row so the library page's LCP image isn't lazy.
+    node: <ExerciseLibraryCard ex={ex} eager={i < 6} />,
   }));
 
   const order = ORDER.map((key) => ({ key, label: ARCHETYPE_LABEL[key] }));
