@@ -52,7 +52,7 @@ export function RegisterForm() {
   return (
     <form onSubmit={submit} className="space-y-4">
       {error && (
-        <p className="rounded-lg border border-hard/30 bg-hard/10 px-3 py-2 text-sm text-hard">{error}</p>
+        <p role="alert" className="rounded-lg border border-hard/30 bg-hard/10 px-3 py-2 text-sm text-hard">{error}</p>
       )}
       <Field label="Name (optional)" type="text" value={name} onChange={setName} autoComplete="name" required={false} />
       <Field label="Email" type="email" value={email} onChange={setEmail} autoComplete="email" />

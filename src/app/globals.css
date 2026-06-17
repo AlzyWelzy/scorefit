@@ -16,7 +16,7 @@
 
   --color-fg: #eceff1;
   --color-muted: #9ba4ad;
-  --color-faint: #6b747c;
+  --color-faint: #828c96; /* >=4.5:1 on surface for WCAG AA on small text */
 
   --color-accent: #ff6a3d;
   --color-accent-2: #ff854f;

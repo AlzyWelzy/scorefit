@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { auth } from "@/auth";
-import { getUserById, setName, setPendingEmail, setPasswordHash, setUnit, setTimezone, updateLeaderboardProfile, emailExists } from "@/db/users";
+import { getUserById, setName, setPendingEmail, setPasswordHash, changeUnit, setTimezone, updateLeaderboardProfile, emailExists } from "@/db/users";
 import { issueToken } from "@/db/tokens";
 import { sendVerificationCode } from "@/lib/mailer";
 import { sameOrigin, rateLimit, clientIp } from "@/lib/rateLimit";
@@ -69,7 +69,8 @@ export async function PATCH(req: Request) {
   }
 
   if (name !== undefined) await setName(user.id, name);
-  if (unit !== undefined) await setUnit(user.id, unit);
+  // Switching units converts stored loads so the same physical weight is preserved.
+  if (unit !== undefined && unit !== user.unit) await changeUnit(user.id, user.unit, unit);
   if (timezone !== undefined && timezone !== user.timezone) await setTimezone(user.id, timezone);
   if (leaderboardOptIn !== undefined || displayName !== undefined || birthYear !== undefined) {
     await updateLeaderboardProfile(user.id, { optIn: leaderboardOptIn, displayName, birthYear });
