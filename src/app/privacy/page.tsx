@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/privacy" },
 };
 
-const UPDATED = "June 17, 2026";
+const UPDATED = "June 18, 2026";
 
 export default function PrivacyPage() {
   return (
@@ -14,16 +14,18 @@ export default function PrivacyPage() {
       <h1 className="font-display text-3xl font-bold tracking-tight text-fg">Privacy Policy</h1>
       <p className="mt-1 text-xs text-faint">Last updated: {UPDATED}</p>
       <p className="mt-4">
-        This policy explains what data ScoreFit (&quot;we&quot;) collects, why, and the choices you have. We
-        keep data collection to the minimum needed to run your training log and the features you opt into.
+        ScoreFit (&quot;we&quot;, &quot;us&quot;), operated at <b>scorefit.net</b>, provides this training-log
+        service. This policy explains what data we collect, why, and the choices you have. We keep data
+        collection to the minimum needed to run your training log and the features you opt into.
       </p>
 
       <S t="Information we collect">
         <ul className="mt-1 list-disc space-y-1 pl-5">
-          <li><b>Account:</b> email address, an optional display name, and a hashed password (we never store your password in plain text).</li>
+          <li><b>Account:</b> email address, an optional name, your birth <i>year</i> (year only — never your full date of birth, collected at sign-up for an age check), and a hashed password (we never store your password in plain text).</li>
           <li><b>Training data:</b> the sets you log — exercise, sets, reps, weight, RPE, and timestamps — plus derived progress, streaks, and achievements.</li>
           <li><b>Settings:</b> your unit preference and timezone (used to bucket sessions into your local day).</li>
-          <li><b>Leaderboards (only if you opt in):</b> a display name and your birth <i>year</i> (year only — never your full date of birth), used for an age check and to show consistency/PR standings.</li>
+          <li><b>Leaderboards (only if you opt in):</b> a public display name and the consistency/PR standings derived from your training, shown to other signed-in members.</li>
+          <li><b>Moderation:</b> if you report content, we store the report (what was reported, the reason, and your account as the reporter) so we can review and act on it.</li>
           <li><b>Security:</b> two-factor settings, and short-lived hashed codes for email/password verification. We log limited technical data (e.g. error events, rate-limit counters) to operate the service.</li>
         </ul>
         We do <b>not</b> collect payment information, and we do not run third-party advertising trackers.
@@ -75,9 +77,10 @@ export default function PrivacyPage() {
       </S>
 
       <S t="Children">
-        ScoreFit&apos;s social and leaderboard features are not directed to children under 13, and we do not
-        knowingly allow under-13 users to join them. If you believe a child has provided us data in violation
-        of this, contact us and we will delete it.
+        We ask for your birth year at sign-up. ScoreFit&apos;s public and social features (leaderboards, and
+        later any social features) are not directed to children under 13, and members under 13 are blocked
+        from joining them; the private training log itself remains available. If you believe a child has
+        provided us data in violation of this, contact us and we will delete it.
       </S>
 
       <S t="Changes & contact">
@@ -86,8 +89,8 @@ export default function PrivacyPage() {
       </S>
 
       <p className="mt-8 text-xs text-faint">
-        This policy describes our actual practices. Laws vary by region; if you operate ScoreFit commercially,
-        have it reviewed for your jurisdiction(s).
+        This policy describes our actual data practices. Privacy law varies by region; for jurisdiction-specific
+        obligations we consult qualified counsel.
       </p>
     </div>
   );

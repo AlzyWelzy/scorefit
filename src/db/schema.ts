@@ -53,6 +53,12 @@ export const users = pgTable("users", {
   displayName: text("display_name"),
   leaderboardOptIn: boolean("leaderboard_opt_in").notNull().default(false),
   acceptedTermsAt: timestamp("accepted_terms_at", { withTimezone: true }),
+  // Moderation foundation (cheap upfront, expensive to retrofit — built before social
+  // ships). isAdmin gates the /admin review queue. suspendedSocialAt soft-suspends
+  // PUBLIC/social privileges only (leaderboards, and later feed/follows) — never the
+  // private training account, which a user can always keep using and exporting.
+  isAdmin: boolean("is_admin").notNull().default(false),
+  suspendedSocialAt: timestamp("suspended_social_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -266,8 +272,37 @@ export const prEvents = pgTable(
   ],
 );
 
+// Moderation queue. Content-type-agnostic (targetType + targetId) so the social
+// surfaces shipping later — display names, feed captions, activity events — plug in
+// without a schema change. reporterId cascades on the reporter's deletion; reportedUserId
+// is captured for context and SET NULL if that account is later removed (a report
+// survives the reported account's deletion for audit). status drives the admin queue.
+export const reports = pgTable(
+  "reports",
+  {
+    id: uuid("id").primaryKey().$defaultFn(newId),
+    reporterId: uuid("reporter_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    reportedUserId: uuid("reported_user_id").references(() => users.id, { onDelete: "set null" }),
+    targetType: text("target_type", { enum: ["user", "display_name", "activity_event", "caption"] }).notNull(),
+    targetId: text("target_id").notNull(), // id/slug of the reported thing (e.g. the reported user's id)
+    reason: text("reason", { enum: ["spam", "harassment", "inappropriate", "impersonation", "other"] }).notNull(),
+    detail: text("detail"), // optional free-text context (≤500 chars, enforced at the API)
+    status: text("status", { enum: ["open", "actioned", "dismissed"] }).notNull().default("open"),
+    resolvedByAdminId: uuid("resolved_by_admin_id").references(() => users.id, { onDelete: "set null" }),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_reports_status").on(t.status),
+    index("idx_reports_reporter").on(t.reporterId),
+  ],
+);
+
 export type UserGameProfile = typeof userGameProfile.$inferSelect;
 export type XpEvent = typeof xpEvents.$inferSelect;
 export type UserAchievement = typeof userAchievements.$inferSelect;
 export type AchievementProgressRow = typeof achievementProgress.$inferSelect;
 export type PrEvent = typeof prEvents.$inferSelect;
+export type Report = typeof reports.$inferSelect;

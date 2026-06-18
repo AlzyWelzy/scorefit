@@ -19,5 +19,6 @@ export const config = {
     "/achievements/:path*",
     "/leaderboards/:path*",
     "/verify-email/:path*",
+    "/admin/:path*",
   ],
 };

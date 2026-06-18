@@ -13,6 +13,11 @@ const schema = z.object({
   email: z.email(),
   password: z.string().min(8, "Password must be at least 8 characters"),
   name: z.string().trim().min(1).max(80).optional(),
+  // Birth year captured at registration so the age cohort is known up front. Stored
+  // (year only — never full DOB); it does NOT block account creation, but gates the
+  // public/social surfaces (leaderboards) for under-MIN_AGE users. Optional for now
+  // so existing clients keep working; the form collects it.
+  birthYear: z.number().int().min(1900).max(new Date().getUTCFullYear()).optional(),
 });
 
 export async function POST(req: Request) {
@@ -46,7 +51,7 @@ export async function POST(req: Request) {
 
   const inserted = await db
     .insert(users)
-    .values({ email, passwordHash, name: parsed.data.name })
+    .values({ email, passwordHash, name: parsed.data.name, birthYear: parsed.data.birthYear })
     .onConflictDoNothing({ target: users.email })
     .returning({ id: users.id });
 

@@ -11,17 +11,30 @@ export function RegisterForm() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [birthYear, setBirthYear] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const currentYear = new Date().getFullYear();
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setBusy(true);
     setError(null);
+
+    // Birth year is required so the age cohort is known at signup. It never blocks
+    // the account itself — it gates public/social surfaces — but we ask for a sane
+    // 4-digit year here so the value we store is meaningful.
+    const by = Number(birthYear);
+    if (!Number.isInteger(by) || by < 1900 || by > currentYear) {
+      setError("Please enter a valid birth year.");
+      return;
+    }
+
+    setBusy(true);
     const res = await fetch("/api/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: name || undefined, email, password }),
+      body: JSON.stringify({ name: name || undefined, email, password, birthYear: by }),
     });
 
     if (!res.ok) {
@@ -63,6 +76,15 @@ export function RegisterForm() {
         onChange={setPassword}
         autoComplete="new-password"
         hint="At least 8 characters."
+      />
+      <Field
+        label="Birth year"
+        type="number"
+        value={birthYear}
+        onChange={setBirthYear}
+        autoComplete="bday-year"
+        inputMode="numeric"
+        hint="Used only to confirm your age for public features. We never store your full date of birth."
       />
       <button
         type="submit"

@@ -43,6 +43,13 @@
       "when": 1781783402000,
       "tag": "0005_pr_xp_refkey_cleanup",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1781789738570,
+      "tag": "0006_lethal_magus",
+      "breakpoints": true
     }
   ]
 }

@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { users, workoutSessions, prEvents } from "@/db/schema";
 import { computeStreak } from "@/lib/game/streak";
@@ -20,9 +20,16 @@ function optedInUsers() {
   return db
     .select({ id: users.id, displayName: users.displayName })
     .from(users)
-    // Both must hold: an explicit board opt-in AND gamification not disabled. Opting
-    // out of gamification clears leaderboardOptIn, so this is belt-and-suspenders.
-    .where(and(eq(users.leaderboardOptIn, true), eq(users.gamificationOptOut, false)));
+    // All must hold: an explicit board opt-in, gamification not disabled, AND no social
+    // suspension. Opting out / being suspended both clear leaderboardOptIn, so the extra
+    // predicates are belt-and-suspenders against any future write path that doesn't.
+    .where(
+      and(
+        eq(users.leaderboardOptIn, true),
+        eq(users.gamificationOptOut, false),
+        isNull(users.suspendedSocialAt),
+      ),
+    );
 }
 
 function rank(

@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/terms" },
 };
 
-const UPDATED = "June 17, 2026";
+const UPDATED = "June 18, 2026";
 
 export default function TermsPage() {
   return (
@@ -14,14 +14,16 @@ export default function TermsPage() {
       <h1 className="font-display text-3xl font-bold tracking-tight text-fg">Terms of Service</h1>
       <p className="mt-1 text-xs text-faint">Last updated: {UPDATED}</p>
       <p className="mt-4">
-        These terms govern your use of ScoreFit. By creating an account or using the service, you agree to
-        them. Please read the health and risk sections carefully.
+        These terms govern your use of ScoreFit, operated at <b>scorefit.net</b> (&quot;we&quot;, &quot;us&quot;).
+        By creating an account or using the service, you agree to them. Please read the health and risk
+        sections carefully.
       </p>
 
       <S t="1. Eligibility">
-        You must be old enough to form a binding contract in your country, and you must meet the minimum age
-        stated in our <a className="text-accent hover:underline" href="/privacy">Privacy Policy</a> to use
-        social or leaderboard features. You&apos;re responsible for keeping your account credentials secure.
+        You must be old enough to form a binding contract in your country. Our public and social features
+        (leaderboards, and later any social features) require you to be at least <b>13</b>; we collect your
+        birth year at sign-up to enforce this. The private training log itself is available regardless. You&apos;re
+        responsible for keeping your account credentials secure.
       </S>
 
       <S t="2. The service">
@@ -52,9 +54,9 @@ export default function TermsPage() {
 
       <S t="6. Honest participation & conduct">
         Leaderboards rely on honest logging. Fabricating data, exploiting bugs, or attempting to manipulate
-        rankings, and any harassment, impersonation, hateful, or abusive behavior, are prohibited. We may
-        remove content and suspend your access to social/leaderboard features for violations — without
-        affecting your private training log.
+        rankings, and any harassment, impersonation, hateful, or abusive behavior, are prohibited. You can
+        report content that breaks these rules; we review reports and may remove content and suspend your
+        access to social/leaderboard features for violations — without affecting your private training log.
       </S>
 
       <S t="7. Your content">
@@ -83,8 +85,8 @@ export default function TermsPage() {
       </S>
 
       <p className="mt-8 text-xs text-faint">
-        Governing law and dispute terms depend on where you operate. If you run ScoreFit commercially, have
-        these terms reviewed for your jurisdiction(s).
+        Governing law and dispute-resolution terms are those of the jurisdiction in which ScoreFit is
+        operated; for jurisdiction-specific obligations we consult qualified counsel.
       </p>
     </div>
   );

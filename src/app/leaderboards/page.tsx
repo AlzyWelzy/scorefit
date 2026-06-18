@@ -4,7 +4,7 @@ import { auth } from "@/auth";
 import { getUserById } from "@/db/users";
 import { getConsistencyBoard, getPrCountBoard, type LeaderRow } from "@/db/leaderboard";
 import { resolveLocalDate } from "@/lib/time";
-import { FLAGS } from "@/lib/flags";
+import { FLAGS, MIN_AGE, meetsMinAge } from "@/lib/flags";
 import { LeaderboardOptIn } from "@/components/LeaderboardOptIn";
 
 export const runtime = "nodejs";
@@ -40,6 +40,11 @@ export default async function LeaderboardsPage() {
             account settings
           </a>{" "}
           to join.
+        </p>
+      ) : user.birthYear && !meetsMinAge(user.birthYear) ? (
+        <p className="mt-8 rounded-card border border-line bg-surface px-5 py-8 text-center text-sm text-muted">
+          Leaderboards are only available to members aged {MIN_AGE} and over. Your
+          training logs and progress are unaffected.
         </p>
       ) : !user.leaderboardOptIn ? (
         <LeaderboardOptIn />

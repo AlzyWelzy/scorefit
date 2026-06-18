@@ -7,7 +7,7 @@ import { issueToken } from "@/db/tokens";
 import { sendVerificationCode } from "@/lib/mailer";
 import { sameOrigin, rateLimit, clientIp } from "@/lib/rateLimit";
 import { isValidTimeZone } from "@/lib/time";
-import { MIN_AGE } from "@/lib/flags";
+import { MIN_AGE, meetsMinAge } from "@/lib/flags";
 
 export const runtime = "nodejs";
 
@@ -65,7 +65,7 @@ export async function PATCH(req: Request) {
     if (!by) {
       return NextResponse.json({ error: "Birth year is required to join leaderboards." }, { status: 400 });
     }
-    if (new Date().getUTCFullYear() - by < MIN_AGE) {
+    if (!meetsMinAge(by)) {
       return NextResponse.json({ error: `You must be at least ${MIN_AGE} to join leaderboards.` }, { status: 403 });
     }
   }
