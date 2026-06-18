@@ -3,6 +3,7 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { getLogsForWeek, upsertSetLog } from "@/db/logs";
 import { evaluateGameEvents } from "@/db/game";
+import { getUserById } from "@/db/users";
 import { PROGRAM_IDS } from "@/lib/data";
 import { resolveLocalDate } from "@/lib/time";
 import { sameOrigin } from "@/lib/rateLimit";
@@ -62,26 +63,32 @@ export async function POST(req: Request) {
 
   // Gamification engine (best-effort): a game-layer failure must never fail the
   // set save. Driven off the persisted row (normalized values), with the same
-  // local event date the session writer used.
+  // local event date the session writer used. Skipped entirely for users who have
+  // turned gamification off (the hard anti-compulsion switch) — no XP/PR/achievement
+  // mechanics fire, though the set + dated session are still saved by upsertSetLog.
+  // Read live (not from the JWT) so toggling off takes effect on the next set.
   let game = null;
-  try {
-    game = await evaluateGameEvents(
-      session.user.id,
-      {
-        program: row.program,
-        week: row.week,
-        daySlug: row.daySlug,
-        exerciseSlug: row.exerciseSlug,
-        setIndex: row.setIndex,
-        weight: row.weight,
-        reps: row.reps,
-        rpe: row.rpe,
-        completed: row.completed,
-      },
-      { unit: session.user.unit, eventDate: resolveLocalDate(session.user.timezone, loggedAt) },
-    );
-  } catch (err) {
-    console.error("[game] evaluate failed", err);
+  const actor = await getUserById(session.user.id);
+  if (actor && !actor.gamificationOptOut) {
+    try {
+      game = await evaluateGameEvents(
+        session.user.id,
+        {
+          program: row.program,
+          week: row.week,
+          daySlug: row.daySlug,
+          exerciseSlug: row.exerciseSlug,
+          setIndex: row.setIndex,
+          weight: row.weight,
+          reps: row.reps,
+          rpe: row.rpe,
+          completed: row.completed,
+        },
+        { unit: session.user.unit, eventDate: resolveLocalDate(session.user.timezone, loggedAt) },
+      );
+    } catch (err) {
+      console.error("[game] evaluate failed", err);
+    }
   }
 
   return NextResponse.json({ log: row, game }, { status: 200 });

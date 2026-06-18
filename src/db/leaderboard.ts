@@ -20,7 +20,9 @@ function optedInUsers() {
   return db
     .select({ id: users.id, displayName: users.displayName })
     .from(users)
-    .where(eq(users.leaderboardOptIn, true));
+    // Both must hold: an explicit board opt-in AND gamification not disabled. Opting
+    // out of gamification clears leaderboardOptIn, so this is belt-and-suspenders.
+    .where(and(eq(users.leaderboardOptIn, true), eq(users.gamificationOptOut, false)));
 }
 
 function rank(

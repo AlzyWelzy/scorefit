@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { setCompletionXp, logQualityXp, classifyPr, XP, PR_MAX_GAIN_PCT } from "./xp";
+import { setCompletionXp, logQualityXp, classifyPr, prCooldownOk, XP, PR_MAX_GAIN_PCT, PR_COOLDOWN_DAYS } from "./xp";
 
 describe("XP calculators", () => {
   it("only completed, prescribed sets earn completion XP (extra sets pay 0)", () => {
@@ -29,5 +29,30 @@ describe("XP calculators", () => {
     expect(tooBig).toMatchObject({ kind: "pr", reward: false });
     const noImprovement = classifyPr({ e1rm: 99, priorBest: 100, cooldownOk: true });
     expect(noImprovement).toEqual({ kind: "none" });
+  });
+
+  it("prCooldownOk: first PR for an exercise always earns (no prior paid dates)", () => {
+    expect(prCooldownOk([], "2026-06-18")).toBe(true);
+  });
+
+  it("prCooldownOk: a paid PR inside the prior window blocks a repeat", () => {
+    // PR_COOLDOWN_DAYS=7: a PR 3 days ago is within the window → blocked.
+    expect(prCooldownOk(["2026-06-15"], "2026-06-18")).toBe(false);
+    // Exactly PR_COOLDOWN_DAYS apart is outside the (strict) window → earns again.
+    const earlier = "2026-06-11"; // 7 days before 2026-06-18
+    expect(PR_COOLDOWN_DAYS).toBe(7);
+    expect(prCooldownOk([earlier], "2026-06-18")).toBe(true);
+    // Well past the window → earns again.
+    expect(prCooldownOk(["2026-06-01"], "2026-06-18")).toBe(true);
+  });
+
+  it("prCooldownOk: only earlier dates gate; a later/same date never blocks", () => {
+    expect(prCooldownOk(["2026-06-18"], "2026-06-18")).toBe(true); // same day (its own row)
+    expect(prCooldownOk(["2026-06-20"], "2026-06-18")).toBe(true); // a future paid PR
+  });
+
+  it("prCooldownOk: blocks if ANY prior paid date falls in the window", () => {
+    expect(prCooldownOk(["2026-06-01", "2026-06-17"], "2026-06-18")).toBe(false);
+    expect(prCooldownOk(["2026-06-01", "2026-06-05"], "2026-06-18")).toBe(true);
   });
 });

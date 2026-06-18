@@ -13,7 +13,7 @@ import { buildWeekCoordinates, weekCount, type ProgramId } from "@/lib/data";
 import { e1rm } from "@/lib/strength";
 import { weekStartOf, addDays } from "@/lib/time";
 import { levelForXp, titleForLevel } from "@/lib/game/levels";
-import { XP, setCompletionXp, logQualityXp, PR_MAX_GAIN_PCT, CADENCE_XP, PERFECT_WEEK_DAYS, PERFECT_WEEK_XP } from "@/lib/game/xp";
+import { XP, setCompletionXp, logQualityXp, prCooldownOk, PR_MAX_GAIN_PCT, PR_COOLDOWN_DAYS, CADENCE_XP, PERFECT_WEEK_DAYS, PERFECT_WEEK_XP } from "@/lib/game/xp";
 import { ACHIEVEMENTS, type AchievementContext, type AchievementTier } from "@/lib/game/achievements";
 
 const LB_TO_KG = 0.45359237;
@@ -157,17 +157,44 @@ export async function evaluateGameEvents(
     if (bestNow > 0) bestMap[exerciseSlug] = { e1rm: bestNow, at: eventDate };
     else delete bestMap[exerciseSlug];
 
-    // PR XP: a flat per-exercise reward that STANDS only while the current best still
-    // meets the best plausible record on file — reverses to 0 if the set is undone.
+    // PR XP: a flat per-exercise reward, paid at most once per PR_COOLDOWN_DAYS so a
+    // burst of small day-over-day "records" can't farm XP. Keyed per OCCURRENCE DATE
+    // (pr:slug:date), not just per exercise, so each window's legitimate first PR keeps
+    // its own ledger row — re-saving that day's set re-pays the same row idempotently,
+    // and undoing the set drops it to 0. The cooldown is evaluated against OTHER paid
+    // pr rows for this exercise (from the ledger, not wall-clock) so it's deterministic.
+    // The base reward stands only while the current best still meets the best plausible
+    // record on file (so it reverses to 0 if the set is later undone).
     const [recRow] = await tx
       .select({ rec: sql<number | null>`max(${prEvents.value}) filter (where not ${prEvents.flagged})` })
       .from(prEvents)
       .where(and(eq(prEvents.userId, userId), eq(prEvents.exerciseSlug, exerciseSlug)));
     const recordedPlausible = recRow?.rec ?? null;
+    const prRefKey = `pr:${exerciseSlug}:${eventDate}`;
+    const recordStands = recordedPlausible != null && bestNow >= recordedPlausible;
+    // Dates of OTHER already-paid PR bonuses for this exercise inside the cooldown
+    // window; the pure prCooldownOk() decides whether this one is far enough past them.
+    const priorPaid = recordStands
+      ? await tx
+          .select({ at: xpEvents.eventDate })
+          .from(xpEvents)
+          .where(
+            and(
+              eq(xpEvents.userId, userId),
+              eq(xpEvents.source, "pr"),
+              sql`${xpEvents.refKey} like ${`pr:${exerciseSlug}:%`}`,
+              sql`${xpEvents.refKey} <> ${prRefKey}`,
+              sql`${xpEvents.amount} > 0`,
+              sql`${xpEvents.eventDate} < ${eventDate}::date`,
+              sql`${xpEvents.eventDate} > (${eventDate}::date - ${PR_COOLDOWN_DAYS} * interval '1 day')`,
+            ),
+          )
+      : [];
+    const cooldownOk = prCooldownOk(priorPaid.map((r) => r.at), eventDate);
     xpRows.push({
       source: "pr",
-      refKey: `pr:${exerciseSlug}`,
-      amount: recordedPlausible != null && bestNow >= recordedPlausible ? XP.pr : 0,
+      refKey: prRefKey,
+      amount: recordStands && cooldownOk ? XP.pr : 0,
       eventDate,
     });
 

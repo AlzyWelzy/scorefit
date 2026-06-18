@@ -51,6 +51,25 @@ export const PR_MAX_GAIN_PCT = 15;
 /** Don't pay a PR bonus for the same exercise more than once per this many days. */
 export const PR_COOLDOWN_DAYS = 7;
 
+/**
+ * Cooldown gate for the PR bonus: given the dates (YYYY-MM-DD) on which a PR bonus
+ * was ALREADY paid for this exercise, is `eventDate` far enough past all of them to
+ * earn another? True iff no prior paid date sits within PR_COOLDOWN_DAYS before it.
+ * Pure + date-keyed (not wall-clock) so the engine's award stays deterministic.
+ */
+export function prCooldownOk(priorPaidDates: string[], eventDate: string): boolean {
+  const end = Date.parse(`${eventDate}T00:00:00Z`);
+  if (Number.isNaN(end)) return true;
+  const windowMs = PR_COOLDOWN_DAYS * 86_400_000;
+  for (const d of priorPaidDates) {
+    const t = Date.parse(`${d}T00:00:00Z`);
+    if (Number.isNaN(t)) continue;
+    // A strictly-earlier paid PR inside the window blocks this one.
+    if (t < end && end - t < windowMs) return false;
+  }
+  return true;
+}
+
 export type PrCheck =
   | { kind: "none" }
   | { kind: "first"; e1rm: number } // first-ever gradeable set: new best, no bonus

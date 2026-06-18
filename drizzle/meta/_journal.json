@@ -29,6 +29,20 @@
       "when": 1781718951300,
       "tag": "0003_groovy_jubilee",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1781771778629,
+      "tag": "0004_confused_triton",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1781783402000,
+      "tag": "0005_pr_xp_refkey_cleanup",
+      "breakpoints": true
     }
   ]
 }

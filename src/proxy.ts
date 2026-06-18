@@ -1,11 +1,23 @@
 import NextAuth from "next-auth";
 import { authConfig } from "@/auth.config";
 
-// Next 16 renamed the `middleware` file convention to `proxy`. Uses the
-// edge-safe config only. Matched to protected routes below, so the `authorized`
-// callback simply requires a session; otherwise it redirects to /login.
+// Fail-closed route protection. Next 16 renamed the `middleware` file convention to
+// `proxy`. The edge-safe authConfig (no DB/bcrypt) decodes the JWT and its `authorized`
+// callback requires a session; unauthenticated hits on a matched PAGE redirect to
+// /login. API routes are intentionally NOT matched here — they keep their own per-route
+// auth() checks so they return 401 JSON, not a redirect. This is a belt-and-suspenders
+// net so a new protected page that forgets its inline check still fails closed.
 export default NextAuth(authConfig).auth;
 
 export const config = {
-  matcher: ["/log/:path*", "/progress/:path*", "/account/:path*", "/verify-email/:path*"],
+  // Every authenticated page surface (each also does its own auth() + redirect).
+  matcher: [
+    "/log/:path*",
+    "/progress/:path*",
+    "/account/:path*",
+    "/profile/:path*",
+    "/achievements/:path*",
+    "/leaderboards/:path*",
+    "/verify-email/:path*",
+  ],
 };

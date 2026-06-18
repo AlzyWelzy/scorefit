@@ -34,6 +34,7 @@ export default async function AccountPage() {
           email={user.email}
           unit={user.unit as "kg" | "lb"}
           emailVerified={!!user.emailVerified}
+          gamificationOptOut={user.gamificationOptOut}
         />
       </div>
     </div>

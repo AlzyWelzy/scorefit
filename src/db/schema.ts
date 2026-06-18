@@ -40,6 +40,11 @@ export const users = pgTable("users", {
   timezone: text("timezone").notNull().default("UTC"),
   weekStartsOn: integer("week_starts_on").notNull().default(1),
   goalSessionsPerWeek: integer("goal_sessions_per_week"),
+  // Hard "disable all gamification" switch (ethics/anti-compulsion). When true the
+  // write-time engine is skipped (no XP/PR/achievement/streak mechanics fire) and the
+  // gamified surfaces hide; opting out also forces the user off the leaderboards.
+  // Default false = gamification on, matching the product's motivational design.
+  gamificationOptOut: boolean("gamification_opt_out").notNull().default(false),
   // Minimal PII for the (opt-in, gated) leaderboards: birth YEAR only (age gate +
   // age cohort, never full DOB), a public vanity handle distinct from the auth name,
   // an explicit opt-in (default off), and a consent timestamp. No board surfaces a

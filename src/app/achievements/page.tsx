@@ -3,7 +3,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { getUserAchievements, getAchievementProgress } from "@/db/game";
+import { getUserById } from "@/db/users";
 import { ACHIEVEMENTS } from "@/lib/game/achievements";
+import { GamificationOff } from "@/components/GamificationOff";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,10 +26,14 @@ export default async function AchievementsPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login?callbackUrl=/achievements");
 
-  const [earned, progress] = await Promise.all([
+  const [user, earned, progress] = await Promise.all([
+    getUserById(session.user.id),
     getUserAchievements(session.user.id),
     getAchievementProgress(session.user.id),
   ]);
+
+  if (user?.gamificationOptOut) return <GamificationOff title="Trophy room" />;
+
   const earnedMap = new Map(earned.map((e) => [e.achievementId, e]));
   const progressMap = new Map(progress.map((p) => [p.key, p]));
 

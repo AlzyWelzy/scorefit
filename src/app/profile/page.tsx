@@ -3,7 +3,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { getGameProfile, getXpBreakdown } from "@/db/game";
+import { getUserById } from "@/db/users";
 import { levelProgress } from "@/lib/game/levels";
+import { GamificationOff } from "@/components/GamificationOff";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,10 +29,13 @@ export default async function ProfilePage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login?callbackUrl=/profile");
 
-  const [profile, breakdown] = await Promise.all([
+  const [user, profile, breakdown] = await Promise.all([
+    getUserById(session.user.id),
     getGameProfile(session.user.id),
     getXpBreakdown(session.user.id),
   ]);
+
+  if (user?.gamificationOptOut) return <GamificationOff title="Training Score" />;
 
   const totalXp = profile?.totalXp ?? 0;
   const prog = levelProgress(totalXp);

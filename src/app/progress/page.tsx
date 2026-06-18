@@ -5,6 +5,7 @@ import { auth } from "@/auth";
 import { buildWeekCoordinates, getProgramOrThrow, isProgramId, PROGRAM_META, type ProgramId } from "@/lib/data";
 import { getLogsForProgram } from "@/db/logs";
 import { getStreakSummary } from "@/db/streaks";
+import { getUserById } from "@/db/users";
 import { e1rm } from "@/lib/strength";
 import { resolveLocalDate } from "@/lib/time";
 
@@ -29,9 +30,15 @@ export default async function ProgressPage({
   const program: ProgramId = sp.program && isProgramId(sp.program) ? sp.program : "beginner";
   const prog = getProgramOrThrow(program);
   const unit = session.user.unit;
+  const user = await getUserById(session.user.id);
+  // Streak is a gamification mechanic — skip it (and hide its UI) when the user has
+  // turned gamification off. Tonnage / e1RM / PR list are plain training data, kept.
+  const gamificationOn = !user?.gamificationOptOut;
   const [logs, streak] = await Promise.all([
     getLogsForProgram(session.user.id, program),
-    getStreakSummary(session.user.id, resolveLocalDate(session.user.timezone)),
+    gamificationOn
+      ? getStreakSummary(session.user.id, resolveLocalDate(session.user.timezone))
+      : Promise.resolve(null),
   ]);
 
   // Valid prescription coordinates per week, so stale logs (after a program
@@ -85,8 +92,12 @@ export default async function ProgressPage({
           <span className="eyebrow">Progress · {PROGRAM_META[program].name}</span>
           <h1 className="mt-1 font-display text-3xl font-bold tracking-tight">Your training</h1>
           <div className="mt-1 flex flex-wrap gap-3 text-xs">
-            <Link href="/profile" className="text-data hover:underline">Training Score →</Link>
-            <Link href="/achievements" className="text-data hover:underline">Achievements →</Link>
+            {gamificationOn && (
+              <>
+                <Link href="/profile" className="text-data hover:underline">Training Score →</Link>
+                <Link href="/achievements" className="text-data hover:underline">Achievements →</Link>
+              </>
+            )}
             <a href="/api/logs/export" className="text-faint hover:text-muted hover:underline">Export CSV</a>
           </div>
         </div>
@@ -110,40 +121,42 @@ export default async function ProgressPage({
       </div>
 
       {/* Kept-week streak + consistency (cross-program; rest/deload weeks never break it) */}
-      <div className="mt-6">
-        <div className="grid grid-cols-3 gap-3">
-          <Stat label="week streak" value={`${streak.currentStreak}`} />
-          <Stat label="longest" value={`${streak.longestStreak}`} />
-          <Stat label="consistency" value={`${streak.rollingConsistency}%`} />
-        </div>
-        <div className="mt-4 rounded-card border border-line bg-surface p-4">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="eyebrow">Don&apos;t break the chain</h2>
-            <span className="text-[11px] text-faint">{streak.target}+ sessions/week = kept</span>
+      {streak && (
+        <div className="mt-6">
+          <div className="grid grid-cols-3 gap-3">
+            <Stat label="week streak" value={`${streak.currentStreak}`} />
+            <Stat label="longest" value={`${streak.longestStreak}`} />
+            <Stat label="consistency" value={`${streak.rollingConsistency}%`} />
           </div>
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {streak.weeks.map((wk) => (
-              <div
-                key={wk.weekStart}
-                title={`Week of ${wk.weekStart}: ${wk.days} day${wk.days === 1 ? "" : "s"}${wk.kept ? " · kept" : ""}`}
-                aria-label={`Week of ${wk.weekStart}: ${wk.days} training days, ${wk.kept ? "kept" : "not kept"}`}
-                className={[
-                  "h-7 w-7 rounded-md border",
-                  wk.isCurrent ? "ring-1 ring-accent" : "",
-                  wk.kept
-                    ? "border-ok/40 bg-ok/25"
-                    : wk.days > 0
-                      ? "border-data/30 bg-data/15"
-                      : "border-line bg-surface-2",
-                ].join(" ")}
-              />
-            ))}
+          <div className="mt-4 rounded-card border border-line bg-surface p-4">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="eyebrow">Don&apos;t break the chain</h2>
+              <span className="text-[11px] text-faint">{streak.target}+ sessions/week = kept</span>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {streak.weeks.map((wk) => (
+                <div
+                  key={wk.weekStart}
+                  title={`Week of ${wk.weekStart}: ${wk.days} day${wk.days === 1 ? "" : "s"}${wk.kept ? " · kept" : ""}`}
+                  aria-label={`Week of ${wk.weekStart}: ${wk.days} training days, ${wk.kept ? "kept" : "not kept"}`}
+                  className={[
+                    "h-7 w-7 rounded-md border",
+                    wk.isCurrent ? "ring-1 ring-accent" : "",
+                    wk.kept
+                      ? "border-ok/40 bg-ok/25"
+                      : wk.days > 0
+                        ? "border-data/30 bg-data/15"
+                        : "border-line bg-surface-2",
+                  ].join(" ")}
+                />
+              ))}
+            </div>
+            <p className="mt-2 text-[11px] text-faint">
+              Each cell is a week. Rest days and deloads don&apos;t break your streak.
+            </p>
           </div>
-          <p className="mt-2 text-[11px] text-faint">
-            Each cell is a week. Rest days and deloads don&apos;t break your streak.
-          </p>
         </div>
-      </div>
+      )}
 
       {logs.length === 0 ? (
         <p className="mt-10 rounded-card border border-line bg-surface px-5 py-10 text-center text-muted">

@@ -121,6 +121,18 @@ export async function setTimezone(id: string, timezone: string): Promise<void> {
   await db.update(users).set({ timezone }).where(eq(users.id, id));
 }
 
+/**
+ * Flip the hard "disable all gamification" switch. Turning it ON also forces the user
+ * off the leaderboards — you can't compete on a public board while the mechanics that
+ * feed it are disabled for you. Turning it back OFF re-enables the engine but does NOT
+ * silently re-join boards (that stays an explicit opt-in).
+ */
+export async function setGamificationOptOut(id: string, optOut: boolean): Promise<void> {
+  const set: Partial<typeof users.$inferInsert> = { gamificationOptOut: optOut };
+  if (optOut) set.leaderboardOptIn = false;
+  await db.update(users).set(set).where(eq(users.id, id));
+}
+
 /** Update the (gated) leaderboard consent profile. Opting in stamps acceptedTermsAt. */
 export async function updateLeaderboardProfile(
   id: string,

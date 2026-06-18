@@ -28,20 +28,103 @@ export function AccountManager({
   email,
   unit,
   emailVerified,
+  gamificationOptOut,
 }: {
   name: string | null;
   email: string;
   unit: Unit;
   emailVerified: boolean;
+  gamificationOptOut: boolean;
 }) {
   return (
     <div className="space-y-5">
       <ProfileSection name={name} unit={unit} />
       <EmailSection email={email} emailVerified={emailVerified} />
       <TwoFactorSection />
+      <GamificationSection optOut={gamificationOptOut} />
       <PasswordSection />
       <DangerSection />
     </div>
+  );
+}
+
+/* ------------------------------------------------------------- Gamification */
+
+function GamificationSection({ optOut }: { optOut: boolean }) {
+  const { update } = useSession();
+  const [enabled, setEnabled] = useState(!optOut);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  async function toggle(next: boolean) {
+    setBusy(true);
+    setError(null);
+    setSaved(false);
+    // Optimistic; revert on failure so the control never lies about server state.
+    setEnabled(next);
+    try {
+      const res = await fetch("/api/account", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gamificationOptOut: !next }),
+      });
+      if (!res.ok) {
+        setEnabled(!next);
+        setError(await readError(res));
+        return;
+      }
+      await update();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch {
+      setEnabled(!next);
+      setError("Something went wrong. Check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="rounded-card border border-line bg-surface p-5">
+      <h2 className="eyebrow">Gamification</h2>
+      <div className="mt-3 flex items-start justify-between gap-4">
+        <p className="text-sm text-muted">
+          XP, levels, streaks and achievements. Turn this off to use ScoreFit as a plain
+          training log — no scores, no streak pressure. Doing so also removes you from
+          the leaderboards. Your logs and progress are never affected.
+        </p>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={enabled}
+          aria-label="Gamification"
+          disabled={busy}
+          onClick={() => toggle(!enabled)}
+          className={`relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-60 ${
+            enabled ? "bg-accent" : "bg-surface-2 border border-line"
+          }`}
+        >
+          <span
+            className={`absolute top-0.5 h-5 w-5 rounded-full bg-bg transition-transform ${
+              enabled ? "translate-x-5" : "translate-x-0.5"
+            }`}
+          />
+        </button>
+      </div>
+      {error && (
+        <p role="alert" className={`mt-3 ${errorBox}`}>
+          {error}
+        </p>
+      )}
+      <span aria-live="polite" className="mt-2 block text-sm text-ok">
+        {saved && (
+          <span className="inline-flex items-center gap-1">
+            <Check className="h-4 w-4" /> {enabled ? "Gamification on" : "Gamification off"}
+          </span>
+        )}
+      </span>
+    </section>
   );
 }
 

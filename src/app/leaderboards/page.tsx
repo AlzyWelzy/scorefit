@@ -33,7 +33,15 @@ export default async function LeaderboardsPage() {
         Self-relative boards — consistency and personal records. Heavier weight never wins.
       </p>
 
-      {!user.leaderboardOptIn ? (
+      {user.gamificationOptOut ? (
+        <p className="mt-8 rounded-card border border-line bg-surface px-5 py-8 text-center text-sm text-muted">
+          Leaderboards need gamification, which you&apos;ve turned off. Re-enable it in{" "}
+          <a href="/account" className="text-accent hover:underline">
+            account settings
+          </a>{" "}
+          to join.
+        </p>
+      ) : !user.leaderboardOptIn ? (
         <LeaderboardOptIn />
       ) : (
         <Boards viewerId={user.id} timezone={session.user.timezone} />
