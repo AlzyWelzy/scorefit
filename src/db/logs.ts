@@ -53,17 +53,19 @@ export async function getPreviousLoads(
   userId: string,
   program: ProgramId,
   beforeWeek: number,
-): Promise<Record<string, { weight: number | null; reps: number | null; week: number }>> {
+): Promise<Record<string, { weight: number | null; reps: number | null; rpe: number | null; week: number }>> {
   // DISTINCT ON (exercise_slug, set_index) keeps one row per coordinate; the ORDER BY
   // makes that the latest week's heaviest set (week desc, weight desc) — the dedup the
   // JS loop used to do, now in the DB. Backed by idx_log_prev_completed (partial,
-  // WHERE completed = true) so the planner walks only completed rows.
+  // WHERE completed = true) so the planner walks only completed rows. rpe feeds the
+  // logger's RPE auto-regulation hint.
   const rows = await db
     .selectDistinctOn([workoutLogs.exerciseSlug, workoutLogs.setIndex], {
       exerciseSlug: workoutLogs.exerciseSlug,
       setIndex: workoutLogs.setIndex,
       weight: workoutLogs.weight,
       reps: workoutLogs.reps,
+      rpe: workoutLogs.rpe,
       week: workoutLogs.week,
     })
     .from(workoutLogs)
@@ -82,9 +84,9 @@ export async function getPreviousLoads(
       desc(workoutLogs.weight),
     );
 
-  const out: Record<string, { weight: number | null; reps: number | null; week: number }> = {};
+  const out: Record<string, { weight: number | null; reps: number | null; rpe: number | null; week: number }> = {};
   for (const r of rows) {
-    out[`${r.exerciseSlug}|${r.setIndex}`] = { weight: r.weight, reps: r.reps, week: r.week };
+    out[`${r.exerciseSlug}|${r.setIndex}`] = { weight: r.weight, reps: r.reps, rpe: r.rpe, week: r.week };
   }
   return out;
 }

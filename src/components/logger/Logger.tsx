@@ -7,6 +7,7 @@ import type { ProgramId } from "@/lib/data";
 import { saveSet, flushOutbox, pendingCount, type SaveState, type SetPayload, type GameResult } from "@/lib/logOutbox";
 import { RestTimer } from "@/components/RestTimer";
 import { PlateCalculator } from "@/components/PlateCalculator";
+import { autoRegulateLoad } from "@/lib/game/xp";
 
 export type LogExercise = {
   slug: string;
@@ -25,10 +26,17 @@ export type InitialLog = {
   rpe: number | null;
   completed: boolean;
 };
-export type PrevLoad = { weight: number | null; reps: number | null; week: number };
+export type PrevLoad = { weight: number | null; reps: number | null; rpe: number | null; week: number };
 
 type Cell = { weight: string; reps: string; rpe: string; completed: boolean };
 const cellKey = (d: string, e: string, i: number) => `${d}|${e}|${i}`;
+
+// Parse a prescribed RPE target from a string like "~8", "8", "8-9" → a number, else null.
+function parseTargetRpe(s: string | null): number | null {
+  if (!s) return null;
+  const m = s.match(/(\d+(?:\.\d+)?)/);
+  return m ? Number(m[1]) : null;
+}
 
 // Pick the day to open on: match today's weekday name against day titles (e.g. a
 // "Monday — Push" title on Monday), else the first day. Runs client-side only.
@@ -434,6 +442,28 @@ export function Logger({
                       Greyed numbers show your last logged set — beat them.
                     </p>
                   )}
+                  {(() => {
+                    // RPE auto-regulation: from last week's top set (weight + RPE) vs the
+                    // prescribed RPE target, suggest the next load. Only when we have both.
+                    const top = prevLoads[`${ex.slug}|1`];
+                    const target = parseTargetRpe(ex.lastRPE);
+                    if (!top || top.weight == null || top.rpe == null || target == null) return null;
+                    const { suggestedWeight, direction } = autoRegulateLoad({
+                      lastWeight: top.weight,
+                      lastRpe: top.rpe,
+                      targetRpe: target,
+                      rounding: unitLabel === "kg" ? 2.5 : 5,
+                    });
+                    const arrow = direction === "up" ? "↑" : direction === "down" ? "↓" : "→";
+                    return (
+                      <p className="mt-1 text-[11px] text-data/80">
+                        Suggested top set: {arrow} {suggestedWeight} {unitLabel}{" "}
+                        <span className="text-faint">
+                          (last {top.weight}×@{top.rpe} vs target RPE {target})
+                        </span>
+                      </p>
+                    );
+                  })()}
                 </div>
               ))}
             </div>
