@@ -43,6 +43,9 @@ export function computeStreak(
   // weeks get a LOWERED target (max(2, target-1)) so correctly taking a deload easy still
   // keeps the streak — never raised. Deload-awareness the doc requires for Phase 1.
   deloadWeekStarts: Set<string> = new Set(),
+  // Week-starts a freeze was applied to (by the week-close cron). A frozen week counts
+  // as kept regardless of days trained — bridges a single missed week so the streak holds.
+  frozenWeekStarts: Set<string> = new Set(),
 ): StreakSummary {
   const currentWeek = weekStartOf(today);
   const targetFor = (weekStart: string) =>
@@ -66,11 +69,12 @@ export function computeStreak(
   for (let w = earliest; w <= currentWeek; w = addDays(w, 7)) {
     const days = daysByWeek.get(w)?.size ?? 0;
     const wkTarget = targetFor(w);
+    const frozen = frozenWeekStarts.has(w);
     cells.push({
       weekStart: w,
       days,
-      kept: days >= wkTarget,
-      score: Math.min(100, Math.round((days / wkTarget) * 100)),
+      kept: frozen || days >= wkTarget,
+      score: frozen ? 100 : Math.min(100, Math.round((days / wkTarget) * 100)),
       isCurrent: w === currentWeek,
     });
   }

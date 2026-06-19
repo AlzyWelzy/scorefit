@@ -1,0 +1,1 @@
+ALTER TABLE "user_game_profile" ADD COLUMN "frozen_weeks" jsonb DEFAULT '[]'::jsonb NOT NULL;

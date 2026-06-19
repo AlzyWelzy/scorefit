@@ -71,6 +71,13 @@
       "when": 1781852796748,
       "tag": "0009_luxuriant_mandroid",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1781852965343,
+      "tag": "0010_famous_living_mummy",
+      "breakpoints": true
     }
   ]
 }

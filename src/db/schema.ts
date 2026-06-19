@@ -214,6 +214,8 @@ export const userGameProfile = pgTable("user_game_profile", {
   // opt-in cosmetic re-prestige. All default to off/zero and are written only by cron.
   freezesAvailable: integer("freezes_available").notNull().default(0),
   freezeKeptWeeks: integer("freeze_kept_weeks").notNull().default(0), // kept weeks since last freeze earned
+  // Week-starts (Mon, YYYY-MM-DD) a freeze has been applied to — those weeks count as kept.
+  frozenWeeks: jsonb("frozen_weeks").$type<string[]>().notNull().default([]),
   seasonId: text("season_id"), // e.g. "2026-Q2"; null until the first season opens
   seasonXp: integer("season_xp").notNull().default(0),
   prestige: integer("prestige").notNull().default(0),

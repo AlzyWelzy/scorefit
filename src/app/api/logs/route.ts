@@ -5,6 +5,7 @@ import { getLogsForWeek, upsertSetLog } from "@/db/logs";
 import { evaluateGameEvents } from "@/db/game";
 import { getUserById, setCurrentPosition } from "@/db/users";
 import { emitActivityEvent } from "@/db/social";
+import { ensureWeeklyChallenge } from "@/db/phase4";
 import { PROGRAM_IDS } from "@/lib/data";
 import { resolveLocalDate } from "@/lib/time";
 import { sameOrigin } from "@/lib/rateLimit";
@@ -71,6 +72,7 @@ export async function POST(req: Request) {
     await captureException(err, { where: "logs.setCurrentPosition", extra: { userId: session.user.id } });
   }
 
+
   // Gamification engine (best-effort): a game-layer failure must never fail the
   // set save. Driven off the persisted row (normalized values), with the same
   // local event date the session writer used. Skipped entirely for users who have
@@ -119,6 +121,14 @@ export async function POST(req: Request) {
       } catch (err) {
         await captureException(err, { where: "social.emit", extra: { userId: session.user.id } });
       }
+    }
+
+    // Implicitly enroll in this week's auto-recurring consistency challenge (Phase 4 MVP).
+    // Best-effort; the week-close cron scores + resolves it.
+    try {
+      await ensureWeeklyChallenge(session.user.id, resolveLocalDate(session.user.timezone, loggedAt));
+    } catch (err) {
+      await captureException(err, { where: "logs.ensureWeeklyChallenge", extra: { userId: session.user.id } });
     }
   }
 
