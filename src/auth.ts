@@ -138,12 +138,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             .from(users)
             .where(eq(users.id, t.sub))
             .limit(1);
-        } catch {
+        } catch (err) {
           // Infrastructure error (pool/replica hiccup) — fail OPEN for
           // availability and retry next cycle, BUT cap how long a token may be
           // honored without a successful revocation check: past a hard ceiling,
           // force re-auth so a revoked session can't survive an extended outage.
-          const HARD_CEILING_MS = 30 * 60 * 1000;
+          // Ceiling lowered to 10 min (was 30) to shrink the window a revoked session
+          // can survive a DB outage; emit a metric so repeated fail-opens are visible.
+          const HARD_CEILING_MS = 10 * 60 * 1000;
+          void import("@/lib/observability").then(({ captureException }) =>
+            captureException(err, { where: "auth.jwt.revocationCheck.failOpen", extra: { sub: t.sub } }),
+          );
           if (verAt !== undefined && Date.now() - verAt > HARD_CEILING_MS) return null;
           return t;
         }

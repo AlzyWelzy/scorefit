@@ -21,6 +21,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Not available" }, { status: 404 });
   }
   if (me.suspendedSocialAt) return NextResponse.json({ error: "Social access suspended." }, { status: 403 });
+  if (!me.emailVerified) return NextResponse.json({ error: "Verify your email to use social features." }, { status: 403 });
 
   const ip = await clientIp();
   const rl = await rateLimit("kudos", `${ip}:${session.user.id}`, 120, 60 * 60 * 1000);

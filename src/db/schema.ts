@@ -68,6 +68,16 @@ export const users = pgTable("users", {
   // Per-user feature-flag allowlist for staged rollout (e.g. ["leaderboards","social"]).
   // Empty/absent = only the global env flags apply.
   featureAllowlist: jsonb("feature_allowlist").$type<string[]>(),
+  // Reminder frequency cap: last lapse-reminder email sent, so the cron never nudges the
+  // same user more than once per cooldown window (quiet-hours respected via timezone).
+  lastReminderAt: timestamp("last_reminder_at", { withTimezone: true }),
+  // Social privacy (Phase 5): three-tier visibility for the feed/profile, default the
+  // most private. sharingPaused is a global kill switch the user can flip to stop ALL of
+  // their activity from appearing anywhere without changing their tier.
+  profileVisibility: text("profile_visibility", { enum: ["private", "friends", "public"] })
+    .notNull()
+    .default("friends"),
+  sharingPaused: boolean("sharing_paused").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -198,6 +208,15 @@ export const userGameProfile = pgTable("user_game_profile", {
     .$type<Record<string, { e1rm: number; at: string }>>()
     .notNull()
     .default({}),
+  // Phase 4 (cron). Streak freezes are scarce/non-stockpiling (earned 1 per 4 kept weeks,
+  // capped at 2) and auto-applied at week-close to bridge a single missed week. Seasons
+  // reset competitive XP quarterly while lifetime totalXp/level persist; prestige is an
+  // opt-in cosmetic re-prestige. All default to off/zero and are written only by cron.
+  freezesAvailable: integer("freezes_available").notNull().default(0),
+  freezeKeptWeeks: integer("freeze_kept_weeks").notNull().default(0), // kept weeks since last freeze earned
+  seasonId: text("season_id"), // e.g. "2026-Q2"; null until the first season opens
+  seasonXp: integer("season_xp").notNull().default(0),
+  prestige: integer("prestige").notNull().default(0),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -429,6 +448,95 @@ export const reactions = pgTable(
   ],
 );
 
+// Opt-in comments on activity events (Phase 5). Bounded length; soft-deletable via the
+// report path (hiddenAt). Author + event both cascade on deletion.
+export const eventComments = pgTable(
+  "event_comments",
+  {
+    id: uuid("id").primaryKey().$defaultFn(newId),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => activityEvents.id, { onDelete: "cascade" }),
+    authorId: uuid("author_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    body: text("body").notNull(), // ≤280 chars, enforced at the API
+    hiddenAt: timestamp("hidden_at", { withTimezone: true }), // soft-delete (moderation)
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("idx_comment_event").on(t.eventId, t.createdAt)],
+);
+
+// ─── Groups / clubs (Phase 5 sub-phase) ──────────────────────────────────────
+
+export const groups = pgTable(
+  "groups",
+  {
+    id: uuid("id").primaryKey().$defaultFn(newId),
+    name: text("name").notNull(),
+    ownerId: uuid("owner_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: ["crew", "coaching"] }).notNull().default("crew"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("idx_group_owner").on(t.ownerId)],
+);
+
+export const groupMembers = pgTable(
+  "group_members",
+  {
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    role: text("role", { enum: ["owner", "coach", "member"] }).notNull().default("member"),
+    // Coaching dashboards see member training ONLY with explicit, revocable consent.
+    sharesTrainingWithCoach: boolean("shares_training_with_coach").notNull().default(false),
+    joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique("uq_group_member").on(t.groupId, t.userId), index("idx_member_user").on(t.userId)],
+);
+
+// ─── Challenges (Phase 4) ─────────────────────────────────────────────────────
+
+// One row per challenge instance. kind drives scoring; frozen finalScore at resolution
+// so later log edits can't flip a settled result. Personal challenges have no group.
+export const challenges = pgTable(
+  "challenges",
+  {
+    id: uuid("id").primaryKey().$defaultFn(newId),
+    kind: text("kind", {
+      enum: ["weekly_consistency", "program_completion", "group_attendance", "duel"],
+    }).notNull(),
+    title: text("title").notNull(),
+    groupId: uuid("group_id").references(() => groups.id, { onDelete: "cascade" }),
+    startsOn: date("starts_on", { mode: "string" }).notNull(),
+    endsOn: date("ends_on", { mode: "string" }).notNull(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("idx_challenge_ends").on(t.endsOn)],
+);
+
+export const challengeParticipants = pgTable(
+  "challenge_participants",
+  {
+    challengeId: uuid("challenge_id")
+      .notNull()
+      .references(() => challenges.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    finalScore: integer("final_score"), // frozen at resolution; null while live
+    finalRank: integer("final_rank"),
+    joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique("uq_challenge_participant").on(t.challengeId, t.userId)],
+);
+
 export type UserGameProfile = typeof userGameProfile.$inferSelect;
 export type XpEvent = typeof xpEvents.$inferSelect;
 export type UserAchievement = typeof userAchievements.$inferSelect;
@@ -440,3 +548,8 @@ export type ExerciseSwap = typeof exerciseSwaps.$inferSelect;
 export type Follow = typeof follows.$inferSelect;
 export type ActivityEvent = typeof activityEvents.$inferSelect;
 export type Reaction = typeof reactions.$inferSelect;
+export type EventComment = typeof eventComments.$inferSelect;
+export type Group = typeof groups.$inferSelect;
+export type GroupMember = typeof groupMembers.$inferSelect;
+export type Challenge = typeof challenges.$inferSelect;
+export type ChallengeParticipant = typeof challengeParticipants.$inferSelect;
