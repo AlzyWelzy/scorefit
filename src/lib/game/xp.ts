@@ -45,6 +45,49 @@ export function setCompletionXp(completed: boolean, isPrescribed: boolean): numb
   return completed && isPrescribed ? XP.prescribedSet : 0;
 }
 
+// Junk-volume decay: within a PRESCRIBED exercise, the prescribed sets pay full; each
+// EXTRA completed set beyond the prescription decays 3 → 1 → 0. Out-of-program coords
+// still pay 0 (handled by isPrescribed upstream). This removes the incentive to grind
+// extra sets (anti-overtraining) without punishing the prescribed work.
+export const JUNK_DECAY = [3, 1, 0] as const;
+
+/**
+ * XP for a completed prescribed-exercise set given its 1-based position within that
+ * exercise's completed sets that day and how many the program prescribes. Positions
+ * ≤ prescribedCount pay full; extras decay per JUNK_DECAY then 0.
+ */
+export function setCompletionXpDecayed(args: {
+  completed: boolean;
+  isPrescribed: boolean;
+  position: number; // 1-based completed-set index within the exercise
+  prescribedCount: number; // sets the program prescribes for this exercise
+}): number {
+  if (!args.completed || !args.isPrescribed) return 0;
+  if (args.position <= Math.max(1, args.prescribedCount)) return XP.prescribedSet;
+  const overIdx = args.position - Math.max(1, args.prescribedCount) - 1; // 0-based extra index
+  return JUNK_DECAY[overIdx] ?? 0;
+}
+
+// RPE auto-regulation: suggest the next set's load from the last set's weight/reps/RPE
+// vs the prescribed RPE target. Each RPE point ≈ one rep in reserve; we nudge load by a
+// small % per point of gap, clamped, and round to a tidy increment. Pure + unit-agnostic.
+export function autoRegulateLoad(args: {
+  lastWeight: number;
+  lastRpe: number;
+  targetRpe: number;
+  rounding?: number; // e.g. 2.5 (kg) or 5 (lb); default 2.5
+}): { suggestedWeight: number; direction: "up" | "down" | "hold" } {
+  const { lastWeight, lastRpe, targetRpe } = args;
+  const rounding = args.rounding ?? 2.5;
+  const gap = targetRpe - lastRpe; // +ve → last set was easier than target → go heavier
+  // ~3% per RPE point, capped at ±12% so a wildly mis-entered RPE can't blow up the load.
+  const pct = Math.max(-0.12, Math.min(0.12, gap * 0.03));
+  const raw = lastWeight * (1 + pct);
+  const suggestedWeight = Math.max(0, Math.round(raw / rounding) * rounding);
+  const direction = suggestedWeight > lastWeight ? "up" : suggestedWeight < lastWeight ? "down" : "hold";
+  return { suggestedWeight, direction };
+}
+
 /** Flat log-quality bonus for a completed set; never scales with weight or reps. */
 export function logQualityXp(args: {
   completed: boolean;

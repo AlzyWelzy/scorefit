@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { setCompletionXp, logQualityXp, classifyPr, prCooldownOk, applyDailyCap, XP, PR_MAX_GAIN_PCT, PR_COOLDOWN_DAYS, DAILY_SOFT_CAP, DAILY_HARD_CAP } from "./xp";
+import { setCompletionXp, setCompletionXpDecayed, logQualityXp, classifyPr, prCooldownOk, applyDailyCap, autoRegulateLoad, XP, PR_MAX_GAIN_PCT, PR_COOLDOWN_DAYS, DAILY_SOFT_CAP, DAILY_HARD_CAP, JUNK_DECAY } from "./xp";
 
 describe("XP calculators", () => {
   it("only completed, prescribed sets earn completion XP (extra sets pay 0)", () => {
@@ -69,5 +69,33 @@ describe("XP calculators", () => {
     const ceiling = DAILY_SOFT_CAP + Math.round((DAILY_HARD_CAP - DAILY_SOFT_CAP) * 0.25);
     expect(applyDailyCap(DAILY_HARD_CAP)).toBe(ceiling);
     expect(applyDailyCap(DAILY_HARD_CAP + 10_000)).toBe(ceiling);
+  });
+
+  it("setCompletionXpDecayed: prescribed sets pay full, extras decay 3→1→0", () => {
+    const base = { completed: true, isPrescribed: true, prescribedCount: 3 };
+    expect(setCompletionXpDecayed({ ...base, position: 1 })).toBe(XP.prescribedSet);
+    expect(setCompletionXpDecayed({ ...base, position: 3 })).toBe(XP.prescribedSet);
+    expect(setCompletionXpDecayed({ ...base, position: 4 })).toBe(JUNK_DECAY[0]); // 3
+    expect(setCompletionXpDecayed({ ...base, position: 5 })).toBe(JUNK_DECAY[1]); // 1
+    expect(setCompletionXpDecayed({ ...base, position: 6 })).toBe(0);
+    expect(setCompletionXpDecayed({ ...base, position: 99 })).toBe(0);
+    // not completed / not prescribed → 0
+    expect(setCompletionXpDecayed({ ...base, completed: false, position: 1 })).toBe(0);
+    expect(setCompletionXpDecayed({ ...base, isPrescribed: false, position: 1 })).toBe(0);
+  });
+
+  it("autoRegulateLoad: heavier when last RPE under target, lighter when over, rounded", () => {
+    // Easier than target (rpe 7 vs target 9) → suggest heavier.
+    const up = autoRegulateLoad({ lastWeight: 100, lastRpe: 7, targetRpe: 9, rounding: 2.5 });
+    expect(up.direction).toBe("up");
+    expect(up.suggestedWeight).toBeGreaterThan(100);
+    // Harder than target → lighter.
+    const down = autoRegulateLoad({ lastWeight: 100, lastRpe: 10, targetRpe: 8, rounding: 2.5 });
+    expect(down.direction).toBe("down");
+    // On target → hold (within rounding).
+    const hold = autoRegulateLoad({ lastWeight: 100, lastRpe: 9, targetRpe: 9 });
+    expect(hold.direction).toBe("hold");
+    // Rounded to the increment.
+    expect(up.suggestedWeight % 2.5).toBe(0);
   });
 });

@@ -14,7 +14,7 @@ import { archetypeFor, equipmentFor } from "@/lib/movement";
 import { e1rm } from "@/lib/strength";
 import { weekStartOf, addDays } from "@/lib/time";
 import { levelForXp, titleForLevel } from "@/lib/game/levels";
-import { XP, setCompletionXp, logQualityXp, prCooldownOk, applyDailyCap, PR_MAX_GAIN_PCT, PR_COOLDOWN_DAYS, CADENCE_XP, PERFECT_WEEK_DAYS, PERFECT_WEEK_XP } from "@/lib/game/xp";
+import { XP, setCompletionXpDecayed, logQualityXp, prCooldownOk, applyDailyCap, PR_MAX_GAIN_PCT, PR_COOLDOWN_DAYS, CADENCE_XP, PERFECT_WEEK_DAYS, PERFECT_WEEK_XP } from "@/lib/game/xp";
 import { ACHIEVEMENTS, type AchievementContext, type AchievementTier } from "@/lib/game/achievements";
 
 const LB_TO_KG = 0.45359237;
@@ -108,9 +108,29 @@ export async function evaluateGameEvents(
       .limit(1);
     const bestMap: Record<string, { e1rm: number; at: string }> = { ...(profileRow?.bestE1rm ?? {}) };
 
+    // Prescribed set count for THIS exercise (for junk-volume decay). The logger only
+    // exposes prescribed coordinates today, so a set's setIndex ≤ count ⇒ full pay; the
+    // decay only bites if extra-set logging is ever added. Computed from the canonical
+    // coordinate space so it can't drift from /log or the session roll-up.
+    let prescribedForExercise = 0;
+    for (const d of buildWeekCoordinates(program, week).days) {
+      if (d.slug !== daySlug) continue;
+      for (const ex of d.exercises) if (ex.slug === exerciseSlug) prescribedForExercise = ex.sets;
+    }
+
     // ---- XP: set-completion + log-quality (idempotent; amount reflects current state) ----
     const xpRows: XpRow[] = [
-      { source: "set_completion", refKey: coordKey, amount: setCompletionXp(input.completed, isPrescribed), eventDate },
+      {
+        source: "set_completion",
+        refKey: coordKey,
+        amount: setCompletionXpDecayed({
+          completed: input.completed,
+          isPrescribed,
+          position: setIndex,
+          prescribedCount: prescribedForExercise,
+        }),
+        eventDate,
+      },
       {
         source: "log_quality",
         refKey: coordKey,

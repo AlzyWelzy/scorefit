@@ -8,6 +8,7 @@ import { getStreakSummary } from "@/db/streaks";
 import { getUserById } from "@/db/users";
 import { getBodyWeightHistory } from "@/db/bodyMetrics";
 import { BodyWeightTracker } from "@/components/BodyWeightTracker";
+import { weeklyMuscleVolume, MUSCLE_LABEL, type VolumeZone } from "@/lib/volume";
 import { e1rm } from "@/lib/strength";
 import { resolveLocalDate } from "@/lib/time";
 
@@ -66,10 +67,14 @@ export default async function ProgressPage({
   // Best e1RM per exercise across the program → PR list + trend.
   const bestByExercise = new Map<string, { e1rm: number; weight: number; reps: number; week: number }>();
 
+  let latestLoggedWeek = 0;
   for (const l of logs) {
     if (!l.completed) continue;
     const inProgram = validCoords.has(`${l.week}|${l.daySlug}|${l.exerciseSlug}|${l.setIndex}`);
-    if (inProgram) done.set(l.week, (done.get(l.week) ?? 0) + 1);
+    if (inProgram) {
+      done.set(l.week, (done.get(l.week) ?? 0) + 1);
+      if (l.week > latestLoggedWeek) latestLoggedWeek = l.week;
+    }
     if (l.weight != null && l.reps != null) {
       tonnage.set(l.week, (tonnage.get(l.week) ?? 0) + l.weight * l.reps);
       if (l.reps > 0 && l.weight > 0) {
@@ -81,6 +86,22 @@ export default async function ProgressPage({
       }
     }
   }
+
+  // Per-muscle weekly set volume vs MEV/MAV/MRV for the most recent logged week —
+  // a science-based "are you in the productive range" readout. Counts completed
+  // in-program sets, mapped to muscles by exercise name.
+  const muscleVolume = latestLoggedWeek
+    ? weeklyMuscleVolume(
+        logs
+          .filter(
+            (l) =>
+              l.completed &&
+              l.week === latestLoggedWeek &&
+              validCoords.has(`${l.week}|${l.daySlug}|${l.exerciseSlug}|${l.setIndex}`),
+          )
+          .map((l) => ({ name: nameBySlug.get(l.exerciseSlug) ?? l.exerciseSlug })),
+      )
+    : [];
 
   const maxTonnage = Math.max(1, ...Array.from(tonnage.values()));
   const totalDone = Array.from(done.values()).reduce((a, b) => a + b, 0);
@@ -232,6 +253,38 @@ export default async function ProgressPage({
         </>
       )}
 
+      {muscleVolume.length > 0 && (
+        <div className="mt-10">
+          <h2 className="eyebrow mb-3">
+            Weekly set volume <span className="text-faint">(week {latestLoggedWeek} · vs MEV/MAV/MRV)</span>
+          </h2>
+          <div className="space-y-2">
+            {muscleVolume.map((m) => (
+              <div key={m.muscle} className="flex items-center gap-3">
+                <span className="w-24 shrink-0 text-sm text-fg">{MUSCLE_LABEL[m.muscle]}</span>
+                <div
+                  className="relative h-6 flex-1 overflow-hidden rounded-md bg-surface-2"
+                  role="img"
+                  aria-label={`${MUSCLE_LABEL[m.muscle]}: ${m.sets} sets this week — ${ZONE_LABEL[m.zone]} (MEV ${m.landmark.mev}, MAV ${m.landmark.mav}, MRV ${m.landmark.mrv})`}
+                >
+                  <div
+                    className={`h-full rounded-md ${ZONE_BAR[m.zone]}`}
+                    style={{ width: `${Math.min(100, Math.round((m.sets / m.landmark.mrv) * 100))}%` }}
+                  />
+                </div>
+                <span className="num w-20 shrink-0 text-right text-xs text-muted" aria-hidden="true">
+                  {m.sets} · {ZONE_LABEL[m.zone]}
+                </span>
+              </div>
+            ))}
+          </div>
+          <p className="mt-2 text-[11px] text-faint">
+            Sets/week per muscle vs minimum-effective (MEV), adaptive-max (MAV) and
+            recoverable-max (MRV) landmarks. Guidance, not a prescription.
+          </p>
+        </div>
+      )}
+
       <BodyWeightTracker
         unit={unit}
         history={bodyHistory.map((b) => ({ measuredOn: b.measuredOn, weight: b.weight }))}
@@ -239,6 +292,19 @@ export default async function ProgressPage({
     </div>
   );
 }
+
+const ZONE_LABEL: Record<VolumeZone, string> = {
+  below: "below MEV",
+  productive: "productive",
+  high: "high",
+  over: "over MRV",
+};
+const ZONE_BAR: Record<VolumeZone, string> = {
+  below: "bg-warn/40",
+  productive: "bg-ok/40",
+  high: "bg-data/40",
+  over: "bg-hard/40",
+};
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
