@@ -95,6 +95,35 @@ export function techArticle(args: { headline: string; description: string; path:
   };
 }
 
+/** ItemList for an index page (exercise library, programs). Ordered links. */
+export function itemList(args: { name: string; items: { name: string; path: string }[] }) {
+  return {
+    "@context": ctx,
+    "@type": "ItemList",
+    name: args.name,
+    numberOfItems: args.items.length,
+    itemListElement: args.items.map((it, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      name: it.name,
+      url: `${SITE_URL}${it.path}`,
+    })),
+  };
+}
+
+/** FAQPage from question/answer pairs (e.g. a guidebook FAQ section). */
+export function faqPage(qas: { question: string; answer: string }[]) {
+  return {
+    "@context": ctx,
+    "@type": "FAQPage",
+    mainEntity: qas.map((qa) => ({
+      "@type": "Question",
+      name: qa.question,
+      acceptedAnswer: { "@type": "Answer", text: qa.answer },
+    })),
+  };
+}
+
 /** Render-ready: serialize one node or an array of nodes for a single <script> tag. */
 export function ldJson(data: object | object[]): string {
   return JSON.stringify(data);

@@ -45,4 +45,19 @@ describe("computeStreak (target 3, Monday-anchored)", () => {
     expect(s.weeks.length).toBe(1);
     expect(s.weeks[0]?.isCurrent).toBe(true);
   });
+
+  it("deload week: a lowered target (2) keeps the week with only 2 days", () => {
+    // Prior week 2026-06-08 has only 2 days → normally NOT kept, but as a deload it is.
+    const dates = ["2026-06-08", "2026-06-09", "2026-06-15", "2026-06-16", "2026-06-17"];
+    const noDeload = computeStreak(dates, TODAY);
+    expect(noDeload.currentStreak).toBe(1); // prior week (2 days) broke it
+    const withDeload = computeStreak(dates, TODAY, undefined, new Set(["2026-06-08"]));
+    expect(withDeload.currentStreak).toBe(2); // deload week kept with 2 days
+  });
+
+  it("deload never RAISES the bar (still kept at full target)", () => {
+    const dates = ["2026-06-15", "2026-06-16", "2026-06-17"];
+    const s = computeStreak(dates, TODAY, undefined, new Set(["2026-06-15"]));
+    expect(s.weeks.at(-1)?.kept).toBe(true);
+  });
 });

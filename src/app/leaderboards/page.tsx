@@ -78,7 +78,7 @@ function Board({ title, hint, rows, suffix = "" }: { title: string; hint: string
       </h2>
       {rows.length === 0 ? (
         <p className="rounded-card border border-line bg-surface px-4 py-6 text-center text-sm text-muted">
-          No one&apos;s here yet. Keep training.
+          This board unlocks once a few more lifters opt in. Keep training.
         </p>
       ) : (
         <div className="overflow-hidden rounded-card border border-line">

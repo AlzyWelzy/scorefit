@@ -5,6 +5,7 @@ import { ExerciseLibraryCard } from "@/components/ExerciseCard";
 import { CountUp } from "@/components/motion/CountUp";
 import { Reveal } from "@/components/motion/Reveal";
 import { LibraryBrowser, type CardItem } from "@/components/LibraryBrowser";
+import { itemList, ldJson } from "@/lib/structuredData";
 
 export const metadata: Metadata = {
   title: "Exercise library",
@@ -30,8 +31,14 @@ export default function ExercisesPage() {
 
   const order = ORDER.map((key) => ({ key, label: ARCHETYPE_LABEL[key] }));
 
+  const ld = itemList({
+    name: "ScoreFit exercise library",
+    items: exerciseLibrary.map((ex) => ({ name: ex.name, path: `/exercises/${ex.slug}` })),
+  });
+
   return (
     <div className="mx-auto max-w-6xl px-5 py-14">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(ld) }} />
       <Reveal>
         <span className="eyebrow-accent">Movement library</span>
         <h1 className="display-tight mt-2.5 flex items-baseline gap-3 font-display text-4xl font-bold tracking-tight sm:text-5xl">

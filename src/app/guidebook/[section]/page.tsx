@@ -5,7 +5,21 @@ import { ArrowLeft } from "lucide-react";
 import { guidebook, getGuideSection, getGuideSectionWithIndex } from "@/lib/data";
 import { Markdown } from "@/components/Markdown";
 import { Reveal } from "@/components/motion/Reveal";
-import { techArticle, breadcrumbs, ldJson } from "@/lib/structuredData";
+import { techArticle, breadcrumbs, faqPage, ldJson } from "@/lib/structuredData";
+
+// Extract `**Question?** Answer` pairs from a section body (the FAQ format) for FAQPage
+// structured data. Returns [] for non-FAQ sections, so it's safe to call on any section.
+function parseFaq(body: string): { question: string; answer: string }[] {
+  const out: { question: string; answer: string }[] = [];
+  const re = /\*\*(.+?\?)\*\*\s*([\s\S]*?)(?=\n\s*\*\*.+?\?\*\*|$)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(body)) !== null) {
+    const question = m[1]!.trim();
+    const answer = m[2]!.replace(/\s+/g, " ").trim();
+    if (question && answer) out.push({ question, answer });
+  }
+  return out;
+}
 
 export function generateStaticParams() {
   return guidebook.sections.map((s) => ({ section: s.slug }));
@@ -34,7 +48,7 @@ export default async function GuideSectionPage({
   const prev = guidebook.sections[idx - 1];
   const next = guidebook.sections[idx + 1];
 
-  const ld = [
+  const ld: object[] = [
     breadcrumbs([
       { name: "Guidebook", path: "/guidebook" },
       { name: s.title, path: `/guidebook/${s.slug}` },
@@ -45,6 +59,9 @@ export default async function GuideSectionPage({
       path: `/guidebook/${s.slug}`,
     }),
   ];
+  // FAQ sections additionally emit FAQPage structured data (rich result eligibility).
+  const faqs = parseFaq(s.body ?? "");
+  if (faqs.length >= 2) ld.push(faqPage(faqs));
 
   return (
     <div className="theme-editorial min-h-screen">

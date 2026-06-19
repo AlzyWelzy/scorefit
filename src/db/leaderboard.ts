@@ -13,6 +13,10 @@ import { computeStreak } from "@/lib/game/streak";
 
 export type LeaderRow = { rank: number; name: string; value: number; isYou: boolean };
 
+// Participant floor: don't expose a board until enough people have opted in, so early
+// boards aren't a near-identifiable handful (privacy) and ranks are meaningful.
+export const MIN_PARTICIPANTS = 5;
+
 const displayFor = (u: { id: string; displayName: string | null }): string =>
   u.displayName?.trim() || `Lifter#${u.id.slice(0, 4)}`;
 
@@ -45,7 +49,7 @@ function rank(
 
 export async function getConsistencyBoard(viewerId: string, today: string, limit = 25): Promise<LeaderRow[]> {
   const us = await optedInUsers();
-  if (us.length === 0) return [];
+  if (us.length < MIN_PARTICIPANTS) return [];
   const ids = us.map((u) => u.id);
   const sessions = await db
     .select({ userId: workoutSessions.userId, sessionDate: workoutSessions.sessionDate })
@@ -62,7 +66,7 @@ export async function getConsistencyBoard(viewerId: string, today: string, limit
 
 export async function getPrCountBoard(viewerId: string, limit = 25): Promise<LeaderRow[]> {
   const us = await optedInUsers();
-  if (us.length === 0) return [];
+  if (us.length < MIN_PARTICIPANTS) return [];
   const ids = us.map((u) => u.id);
   const counts = await db
     .select({ userId: prEvents.userId, n: sql<number>`count(*)::int` })

@@ -35,8 +35,18 @@ export type StreakSummary = {
  * target yet this week, the streak holds on your prior kept weeks rather than
  * resetting mid-week.
  */
-export function computeStreak(dates: string[], today: string, target = STREAK_TARGET): StreakSummary {
+export function computeStreak(
+  dates: string[],
+  today: string,
+  target = STREAK_TARGET,
+  // Calendar week-starts (Monday, YYYY-MM-DD) that fall in a program deload week. Those
+  // weeks get a LOWERED target (max(2, target-1)) so correctly taking a deload easy still
+  // keeps the streak — never raised. Deload-awareness the doc requires for Phase 1.
+  deloadWeekStarts: Set<string> = new Set(),
+): StreakSummary {
   const currentWeek = weekStartOf(today);
+  const targetFor = (weekStart: string) =>
+    deloadWeekStarts.has(weekStart) ? Math.max(2, target - 1) : target;
 
   // distinct days per week
   const daysByWeek = new Map<string, Set<string>>();
@@ -55,11 +65,12 @@ export function computeStreak(dates: string[], today: string, target = STREAK_TA
   const cells: WeekCell[] = [];
   for (let w = earliest; w <= currentWeek; w = addDays(w, 7)) {
     const days = daysByWeek.get(w)?.size ?? 0;
+    const wkTarget = targetFor(w);
     cells.push({
       weekStart: w,
       days,
-      kept: days >= target,
-      score: Math.min(100, Math.round((days / target) * 100)),
+      kept: days >= wkTarget,
+      score: Math.min(100, Math.round((days / wkTarget) * 100)),
       isCurrent: w === currentWeek,
     });
   }

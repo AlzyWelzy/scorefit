@@ -2,8 +2,13 @@ import type { MetadataRoute } from "next";
 import { exerciseLibrary, guidebook, PROGRAM_IDS, getProgramOrThrow } from "@/lib/data";
 
 const BASE = "https://scorefit.net";
-// A single stable date so the sitemap doesn't churn on every build.
-const LAST_MODIFIED = new Date("2026-01-01");
+// Content provenance: prefer a deploy-stamped date (set BUILD_DATE / Vercel's
+// VERCEL_GIT_COMMIT_* at build, or a content-revision date) so lastModified reflects
+// real publishes, not a frozen literal. Falls back to a stable date if unset, and
+// guards against an unparseable value so the sitemap never throws.
+const provenance = process.env.BUILD_DATE || process.env.CONTENT_REVISION_DATE;
+const parsed = provenance ? new Date(provenance) : null;
+const LAST_MODIFIED = parsed && !Number.isNaN(parsed.getTime()) ? parsed : new Date("2026-01-01");
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const staticPages = ["", "/programs", "/exercises", "/guidebook", "/tools"].map((p) => ({
