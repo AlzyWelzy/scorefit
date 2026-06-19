@@ -36,8 +36,12 @@ body-fat, measurement, or photo field is collected anywhere in `src/db/schema.ts
 
 ## Structural guarantees (not just policy)
 
-- **No bodyweight is collected at all.** There is no `body_metrics` table, no
-  bodyweight column, no progress-photo storage. The cutting incentive has no input.
+- **Bodyweight is private-only, never competitive.** A `body_metrics` table exists for
+  an opt-in personal bodyweight trend (`/progress`), but it is NEVER fed into any
+  leaderboard, XP calculation, achievement, or public/social surface — verified in
+  `src/db/leaderboard.ts` (ranks consistency % + PR count only) and `src/db/game.ts`
+  (no bodyweight input). No progress-photo storage exists. The cutting incentive has no
+  competitive input: being lighter cannot improve any ranked metric.
 - **Birth *year* only** (never full DOB) — minimal PII, used solely for the age gate.
 - **A hard "disable all gamification" switch** (`users.gamificationOptOut`) lets any
   user remove XP/levels/streaks/achievements entirely and use ScoreFit as a plain log.
