@@ -9,11 +9,12 @@ import {
   achievementProgress,
   prEvents,
 } from "@/db/schema";
-import { buildWeekCoordinates, weekCount, type ProgramId } from "@/lib/data";
+import { buildWeekCoordinates, weekCount, getExercise, type ProgramId } from "@/lib/data";
+import { archetypeFor, equipmentFor } from "@/lib/movement";
 import { e1rm } from "@/lib/strength";
 import { weekStartOf, addDays } from "@/lib/time";
 import { levelForXp, titleForLevel } from "@/lib/game/levels";
-import { XP, setCompletionXp, logQualityXp, prCooldownOk, PR_MAX_GAIN_PCT, PR_COOLDOWN_DAYS, CADENCE_XP, PERFECT_WEEK_DAYS, PERFECT_WEEK_XP } from "@/lib/game/xp";
+import { XP, setCompletionXp, logQualityXp, prCooldownOk, applyDailyCap, PR_MAX_GAIN_PCT, PR_COOLDOWN_DAYS, CADENCE_XP, PERFECT_WEEK_DAYS, PERFECT_WEEK_XP } from "@/lib/game/xp";
 import { ACHIEVEMENTS, type AchievementContext, type AchievementTier } from "@/lib/game/achievements";
 
 const LB_TO_KG = 0.45359237;
@@ -128,6 +129,7 @@ export async function evaluateGameEvents(
         setIndex: workoutLogs.setIndex,
         weight: workoutLogs.weight,
         reps: workoutLogs.reps,
+        rpe: workoutLogs.rpe,
       })
       .from(workoutLogs)
       .where(and(eq(workoutLogs.userId, userId), eq(workoutLogs.completed, true)));
@@ -201,7 +203,12 @@ export async function evaluateGameEvents(
     // ---- achievement context (PRESCRIBED completed coords only) ----
     let totalCompletedSets = 0;
     let lifetimeTonnageRaw = 0;
+    let rpeSetCount = 0;
+    let pushSets = 0;
+    let pullSets = 0;
     const distinctEx = new Set<string>();
+    const archetypes = new Set<string>();
+    const equipment = new Set<string>();
     const completedByProgram: Record<string, number> = { beginner: 0, intermediate: 0 };
     for (const l of completedLogs) {
       if (!validCoordsFor(l.program).has(`${l.week}|${l.daySlug}|${l.exerciseSlug}|${l.setIndex}`)) continue;
@@ -209,6 +216,15 @@ export async function evaluateGameEvents(
       distinctEx.add(l.exerciseSlug);
       if (l.weight != null && l.reps != null) lifetimeTonnageRaw += l.weight * l.reps;
       completedByProgram[l.program] = (completedByProgram[l.program] ?? 0) + 1;
+      if (l.rpe != null && l.rpe >= 5 && l.rpe <= 10) rpeSetCount += 1;
+      // Breadth + push/pull balance: classify by exercise NAME (the heuristics are
+      // name-based). Unknown slugs fall through to "static"/default, harmless here.
+      const name = getExercise(l.exerciseSlug)?.name ?? l.exerciseSlug;
+      const arch = archetypeFor(name);
+      archetypes.add(arch);
+      equipment.add(equipmentFor(name));
+      if (arch === "press" || arch === "triceps") pushSets += 1;
+      else if (arch === "pull" || arch === "curl") pullSets += 1;
     }
     const lifetimeTonnage = ctx.unit === "lb" ? lifetimeTonnageRaw * LB_TO_KG : lifetimeTonnageRaw;
 
@@ -237,6 +253,11 @@ export async function evaluateGameEvents(
       hasAnyPr: (prCount?.n ?? 0) > 0,
       daysSinceLastSession: sess?.priorDate ? daysBetween(sess.priorDate, eventDate) : null,
       unit: ctx.unit,
+      distinctArchetypes: archetypes.size,
+      distinctEquipment: equipment.size,
+      rpeSetCount,
+      pushSets,
+      pullSets,
     };
 
     // ---- evaluate achievements (earned ones are permanent: never downgraded/removed) ----
@@ -347,11 +368,22 @@ export async function evaluateGameEvents(
       });
 
     // ---- recompute the denormalized profile from the ledger ----
-    const [sum] = await tx
-      .select({ total: sql<number>`coalesce(sum(${xpEvents.amount}), 0)::int` })
+    // Daily cap is applied to the RATE-LIMITED sources (set/log-quality/PR) per event
+    // date, then the capped per-day subtotals are summed with the un-rate-limited
+    // sources (cadence/perfect-week/achievement, already weekly/once). Done over the
+    // ledger so totalXp stays a pure, self-healing function of the events.
+    // Rate-limited sources = set_completion, log_quality, pr (capped per day).
+    const perDay = await tx
+      .select({
+        eventDate: xpEvents.eventDate,
+        rateLimited: sql<number>`coalesce(sum(${xpEvents.amount}) filter (where ${xpEvents.source} in ('set_completion','log_quality','pr')), 0)::int`,
+        uncapped: sql<number>`coalesce(sum(${xpEvents.amount}) filter (where ${xpEvents.source} not in ('set_completion','log_quality','pr')), 0)::int`,
+      })
       .from(xpEvents)
-      .where(eq(xpEvents.userId, userId));
-    const totalXp = sum?.total ?? 0;
+      .where(eq(xpEvents.userId, userId))
+      .groupBy(xpEvents.eventDate);
+    let totalXp = 0;
+    for (const d of perDay) totalXp += applyDailyCap(Math.max(0, d.rateLimited)) + d.uncapped;
     const level = levelForXp(totalXp);
     const title = titleForLevel(level);
     const prevLevel = profileRow?.level ?? 1;
@@ -400,4 +432,23 @@ export async function getUserAchievements(userId: string) {
 
 export async function getAchievementProgress(userId: string) {
   return db.select().from(achievementProgress).where(eq(achievementProgress.userId, userId));
+}
+
+/**
+ * Rarity per achievement = % of players who hold it. Computed at read time (no stored
+ * rarity to drift): unlock count per achievementId over the count of players who have
+ * any game profile (the "active player" denominator). Returns 0..100 by achievementId.
+ */
+export async function getAchievementRarity(): Promise<Record<string, number>> {
+  const [{ players } = { players: 0 }] = await db
+    .select({ players: sql<number>`count(*)::int` })
+    .from(userGameProfile);
+  if (!players) return {};
+  const counts = await db
+    .select({ achievementId: userAchievements.achievementId, n: sql<number>`count(*)::int` })
+    .from(userAchievements)
+    .groupBy(userAchievements.achievementId);
+  const out: Record<string, number> = {};
+  for (const c of counts) out[c.achievementId] = Math.round((c.n / players) * 100);
+  return out;
 }

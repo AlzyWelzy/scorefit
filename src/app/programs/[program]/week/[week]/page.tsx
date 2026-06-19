@@ -88,6 +88,12 @@ export default async function WeekPage({
               <div className="mb-4 flex items-center gap-3 border-b border-line pb-3">
                 <h2 className="font-display text-xl font-semibold">{d.title}</h2>
                 <span className="num text-sm text-faint">{d.exercises.length} exercises</span>
+                <Link
+                  href={`/log?program=${program}&week=${week}#${d.slug}`}
+                  className="ml-auto inline-flex items-center gap-1 rounded-lg border border-accent/40 bg-accent-dim px-3 py-1.5 text-xs font-semibold text-accent-2 transition-colors hover:bg-accent/15"
+                >
+                  Log this day →
+                </Link>
               </div>
               <div className="space-y-3">
                 {d.exercises.map((ex, i) => (

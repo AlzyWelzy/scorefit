@@ -8,6 +8,7 @@
 // blip). In-memory limiting during an outage is per-instance but still bounded.
 
 import { headers } from "next/headers";
+import { captureException } from "@/lib/observability";
 
 export type RateResult = { ok: boolean; remaining: number; retryAfter: number };
 
@@ -96,7 +97,7 @@ function logUpstashFallback(err: unknown) {
   const now = Date.now();
   if (now - lastFallbackLog < 30_000) return;
   lastFallbackLog = now;
-  console.error("[rateLimit] Upstash unavailable — degrading to in-memory limiting:", err);
+  void captureException(err, { where: "rateLimit.upstashFallback" });
 }
 
 export async function rateLimit(

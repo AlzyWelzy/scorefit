@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { setCompletionXp, logQualityXp, classifyPr, prCooldownOk, XP, PR_MAX_GAIN_PCT, PR_COOLDOWN_DAYS } from "./xp";
+import { setCompletionXp, logQualityXp, classifyPr, prCooldownOk, applyDailyCap, XP, PR_MAX_GAIN_PCT, PR_COOLDOWN_DAYS, DAILY_SOFT_CAP, DAILY_HARD_CAP } from "./xp";
 
 describe("XP calculators", () => {
   it("only completed, prescribed sets earn completion XP (extra sets pay 0)", () => {
@@ -54,5 +54,20 @@ describe("XP calculators", () => {
   it("prCooldownOk: blocks if ANY prior paid date falls in the window", () => {
     expect(prCooldownOk(["2026-06-01", "2026-06-17"], "2026-06-18")).toBe(false);
     expect(prCooldownOk(["2026-06-01", "2026-06-05"], "2026-06-18")).toBe(true);
+  });
+
+  it("applyDailyCap: passes through under the soft cap", () => {
+    expect(applyDailyCap(0)).toBe(0);
+    expect(applyDailyCap(130)).toBe(130);
+    expect(applyDailyCap(DAILY_SOFT_CAP)).toBe(DAILY_SOFT_CAP);
+  });
+
+  it("applyDailyCap: quarter-rate between soft and hard cap, then flat at the ceiling", () => {
+    // 40 over the soft cap → 40 * 0.25 = 10 extra.
+    expect(applyDailyCap(DAILY_SOFT_CAP + 40)).toBe(DAILY_SOFT_CAP + 10);
+    // At/above the hard cap, the over-portion is clamped to (hard - soft) first.
+    const ceiling = DAILY_SOFT_CAP + Math.round((DAILY_HARD_CAP - DAILY_SOFT_CAP) * 0.25);
+    expect(applyDailyCap(DAILY_HARD_CAP)).toBe(ceiling);
+    expect(applyDailyCap(DAILY_HARD_CAP + 10_000)).toBe(ceiling);
   });
 });

@@ -50,8 +50,17 @@ export async function generateBackupCodes(userId: string, count = 10): Promise<s
     const raw = randomBytes(4).toString("hex").toUpperCase();
     return `${raw.slice(0, 4)}-${raw.slice(4, 8)}`;
   });
-  await db.delete(backupCodes).where(eq(backupCodes.userId, userId));
-  await db.insert(backupCodes).values(codes.map((c) => ({ userId, codeHash: hash(c) })));
+  // Regenerating backup codes invalidates the old set and is a credential-rotating
+  // action, so bump tokenVersion to propagate the eventual-revocation path to sibling
+  // sessions — matching disableTwoFactor / password change. Done in one transaction.
+  await db.transaction(async (tx) => {
+    await tx.delete(backupCodes).where(eq(backupCodes.userId, userId));
+    await tx.insert(backupCodes).values(codes.map((c) => ({ userId, codeHash: hash(c) })));
+    await tx
+      .update(users)
+      .set({ tokenVersion: sql`${users.tokenVersion} + 1` })
+      .where(eq(users.id, userId));
+  });
   return codes;
 }
 

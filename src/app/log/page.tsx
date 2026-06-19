@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { buildWeekCoordinates, getProgramOrThrow, isProgramId, PROGRAM_META, type ProgramId } from "@/lib/data";
 import { getLogsForWeek, getPreviousLoads } from "@/db/logs";
+import { getUserById } from "@/db/users";
 import { Logger, type LogDay, type InitialLog, type PrevLoad } from "@/components/logger/Logger";
 
 export const runtime = "nodejs";
@@ -23,10 +24,16 @@ export default async function LogPage({
   if (!session?.user?.id) redirect("/login?callbackUrl=/log");
 
   const sp = await searchParams;
-  const program: ProgramId = sp.program && isProgramId(sp.program) ? sp.program : "beginner";
+  // Resume where the user is (last-logged program/week) when no explicit params; an
+  // explicit ?program=/?week= always wins (e.g. the "Log this day" deep-links).
+  const me = await getUserById(session.user.id);
+  const program: ProgramId = sp.program && isProgramId(sp.program)
+    ? sp.program
+    : (me?.currentProgram ?? "beginner");
   const prog = getProgramOrThrow(program);
   const maxWeek = prog.weeks.length;
-  const weekReq = parseInt(sp.week ?? "1", 10);
+  const defaultWeek = sp.program ? 1 : (me?.currentWeek ?? 1); // only fall back to saved week when program wasn't explicit
+  const weekReq = parseInt(sp.week ?? String(defaultWeek), 10);
   const week = Number.isFinite(weekReq) ? Math.min(Math.max(weekReq, 1), maxWeek) : 1;
 
   // Shares the coordinate space (unique slugs + set counts) with /progress and the

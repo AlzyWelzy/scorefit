@@ -4,7 +4,7 @@ import { auth } from "@/auth";
 import { getUserById } from "@/db/users";
 import { getConsistencyBoard, getPrCountBoard, type LeaderRow } from "@/db/leaderboard";
 import { resolveLocalDate } from "@/lib/time";
-import { FLAGS, MIN_AGE, meetsMinAge } from "@/lib/flags";
+import { featureEnabledFor, MIN_AGE, meetsMinAge } from "@/lib/flags";
 import { LeaderboardOptIn } from "@/components/LeaderboardOptIn";
 
 export const runtime = "nodejs";
@@ -17,13 +17,14 @@ export const metadata: Metadata = {
 };
 
 export default async function LeaderboardsPage() {
-  // Gated: the feature must be explicitly enabled (after the safety/legal review).
-  if (!FLAGS.leaderboards) notFound();
-
   const session = await auth();
   if (!session?.user?.id) redirect("/login?callbackUrl=/leaderboards");
   const user = await getUserById(session.user.id);
   if (!user) redirect("/login");
+
+  // Gated: on for everyone once LEADERBOARDS_ENABLED is set (after the safety/legal
+  // review), OR ahead of that for users on the per-user allowlist (staged rollout).
+  if (!featureEnabledFor("leaderboards", user.featureAllowlist)) notFound();
 
   return (
     <div className="mx-auto max-w-3xl px-5 py-12">

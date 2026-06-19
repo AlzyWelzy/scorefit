@@ -1,5 +1,7 @@
 "use client";
 
+import { useId } from "react";
+
 // Shared labelled input for the auth forms. Uses --color-muted (AA-contrast)
 // for the label, and a 16px base font so iOS Safari doesn't force-zoom.
 export function Field({
@@ -9,6 +11,7 @@ export function Field({
   onChange,
   autoComplete,
   hint,
+  error,
   required = true,
   inputMode,
   pattern,
@@ -20,17 +23,26 @@ export function Field({
   onChange: (v: string) => void;
   autoComplete?: string;
   hint?: string;
+  error?: string;
   required?: boolean;
   inputMode?: "text" | "numeric" | "email";
   pattern?: string;
   maxLength?: number;
 }) {
+  const id = useId();
+  const hintId = `${id}-hint`;
+  const errorId = `${id}-error`;
+  // Link the input to whichever helper text is present, so a screen reader announces
+  // it with the field. Error takes precedence and also flips aria-invalid.
+  const describedBy = error ? errorId : hint ? hintId : undefined;
+
   return (
-    <label className="block">
+    <label className="block" htmlFor={id}>
       <span className="mb-1 block font-mono text-[0.7rem] uppercase tracking-[0.16em] text-muted">
         {label}
       </span>
       <input
+        id={id}
         type={type}
         value={value}
         autoComplete={autoComplete}
@@ -40,9 +52,21 @@ export function Field({
         inputMode={inputMode}
         pattern={pattern}
         maxLength={maxLength}
+        aria-describedby={describedBy}
+        aria-invalid={error ? true : undefined}
         className="w-full rounded-lg border border-line bg-bg px-3 py-2.5 text-base text-fg focus:border-accent focus:outline-none"
       />
-      {hint && <span className="mt-1 block text-xs text-muted">{hint}</span>}
+      {error ? (
+        <span id={errorId} role="alert" className="mt-1 block text-xs text-hard">
+          {error}
+        </span>
+      ) : (
+        hint && (
+          <span id={hintId} className="mt-1 block text-xs text-muted">
+            {hint}
+          </span>
+        )
+      )}
     </label>
   );
 }

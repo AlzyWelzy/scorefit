@@ -3,10 +3,11 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { getLogsForWeek, upsertSetLog } from "@/db/logs";
 import { evaluateGameEvents } from "@/db/game";
-import { getUserById } from "@/db/users";
+import { getUserById, setCurrentPosition } from "@/db/users";
 import { PROGRAM_IDS } from "@/lib/data";
 import { resolveLocalDate } from "@/lib/time";
 import { sameOrigin } from "@/lib/rateLimit";
+import { captureException } from "@/lib/observability";
 
 export const runtime = "nodejs";
 
@@ -61,6 +62,14 @@ export async function POST(req: Request) {
     loggedAt,
   });
 
+  // Remember where the user is so /log, /progress and TodayCard resume here next time.
+  // Best-effort: a failure must never fail the set save.
+  try {
+    await setCurrentPosition(session.user.id, row.program, row.week);
+  } catch (err) {
+    await captureException(err, { where: "logs.setCurrentPosition", extra: { userId: session.user.id } });
+  }
+
   // Gamification engine (best-effort): a game-layer failure must never fail the
   // set save. Driven off the persisted row (normalized values), with the same
   // local event date the session writer used. Skipped entirely for users who have
@@ -87,7 +96,7 @@ export async function POST(req: Request) {
         { unit: session.user.unit, eventDate: resolveLocalDate(session.user.timezone, loggedAt) },
       );
     } catch (err) {
-      console.error("[game] evaluate failed", err);
+      await captureException(err, { where: "game.evaluate", extra: { userId: session.user.id } });
     }
   }
 

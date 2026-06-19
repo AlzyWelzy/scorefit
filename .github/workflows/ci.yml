@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, improvements, feature/gamification]
+    branches: [main, improvements, feature/gamification, feature/new-features]
   pull_request:
 
 jobs:

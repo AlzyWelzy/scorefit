@@ -1,4 +1,5 @@
 import { pgTable, uuid, text, integer, real, boolean, timestamp, date, jsonb, unique, index } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { newId } from "../lib/ids";
 
 // Every `id` is a ULID rendered into a native Postgres `uuid` column (16-byte,
@@ -59,6 +60,14 @@ export const users = pgTable("users", {
   // private training account, which a user can always keep using and exporting.
   isAdmin: boolean("is_admin").notNull().default(false),
   suspendedSocialAt: timestamp("suspended_social_at", { withTimezone: true }),
+  // "Where you are" — the program/week the logger and TodayCard default to, plus when
+  // the user started, so the app resumes where they left off instead of always week 1.
+  currentProgram: text("current_program", { enum: ["beginner", "intermediate"] }),
+  currentWeek: integer("current_week"),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  // Per-user feature-flag allowlist for staged rollout (e.g. ["leaderboards","social"]).
+  // Empty/absent = only the global env flags apply.
+  featureAllowlist: jsonb("feature_allowlist").$type<string[]>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -119,6 +128,11 @@ export const workoutLogs = pgTable(
   (t) => [
     unique("uq_log_coords").on(t.userId, t.program, t.week, t.daySlug, t.exerciseSlug, t.setIndex),
     index("idx_log_user_program_week").on(t.userId, t.program, t.week),
+    // Partial index for getPreviousLoads' DISTINCT ON (only completed rows are scanned),
+    // ordered to match (exercise, set, latest week, heaviest) so the dedup is index-served.
+    index("idx_log_prev_completed")
+      .on(t.userId, t.program, t.exerciseSlug, t.setIndex, t.week.desc())
+      .where(sql`${t.completed} = true`),
   ],
 );
 
@@ -300,9 +314,29 @@ export const reports = pgTable(
   ],
 );
 
+// Bodyweight / body-measurement tracking (P4). One row per user per local day; the
+// weight is stored in the user's current unit (converted on a unit switch like logs).
+// Deliberately minimal — bodyweight only — and NEVER fed into any leaderboard, XP, or
+// public surface (see ED_SAFETY_REVIEW.md): it's a private trend on /progress only.
+export const bodyMetrics = pgTable(
+  "body_metrics",
+  {
+    id: uuid("id").primaryKey().$defaultFn(newId),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    measuredOn: date("measured_on", { mode: "string" }).notNull(), // user-local day
+    weight: real("weight").notNull(), // in the user's unit at time of entry
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique("uq_body_metric_day").on(t.userId, t.measuredOn)],
+);
+
 export type UserGameProfile = typeof userGameProfile.$inferSelect;
 export type XpEvent = typeof xpEvents.$inferSelect;
 export type UserAchievement = typeof userAchievements.$inferSelect;
 export type AchievementProgressRow = typeof achievementProgress.$inferSelect;
 export type PrEvent = typeof prEvents.$inferSelect;
 export type Report = typeof reports.$inferSelect;
+export type BodyMetric = typeof bodyMetrics.$inferSelect;

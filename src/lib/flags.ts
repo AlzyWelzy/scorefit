@@ -7,6 +7,18 @@ export const FLAGS = {
   social: process.env.SOCIAL_ENABLED === "true",
 } as const;
 
+export type FeatureKey = keyof typeof FLAGS;
+
+/**
+ * Staged-rollout gate: a feature is on for a user if the global env flag is set OR the
+ * user's per-user allowlist (users.featureAllowlist) names it. Lets you flip a feature
+ * on for specific accounts (beta testers) before the global switch — without a deploy.
+ */
+export function featureEnabledFor(key: FeatureKey, userAllowlist: string[] | null | undefined): boolean {
+  if (FLAGS[key]) return true;
+  return Array.isArray(userAllowlist) && userAllowlist.includes(key);
+}
+
 /** Minimum age to participate in any public/social surface (COPPA floor). */
 export const MIN_AGE = 13;
 

@@ -1,0 +1,29 @@
+name: Migrate (deploy)
+
+# Applies pending Drizzle migrations to the production database on merge to main —
+# using `drizzle-kit migrate` (journal-tracked, ordered), NOT `db:push` (which diffs
+# live schema and can drift). Runs only when the DATABASE_URL secret is configured, so
+# forks/PRs without the secret don't fail. Pair with Vercel deploy: migrate, then ship.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: "npm"
+      - run: npm ci
+      - name: Apply migrations
+        if: ${{ secrets.DATABASE_URL != '' }}
+        run: npm run db:migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - name: Skipped (no DATABASE_URL secret)
+        if: ${{ secrets.DATABASE_URL == '' }}
+        run: echo "DATABASE_URL secret not set — skipping migrations."

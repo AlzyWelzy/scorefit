@@ -2,6 +2,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { workoutLogs, type WorkoutLog } from "@/db/schema";
 import { syncSessionForLog } from "@/db/sessions";
+import { captureException } from "@/lib/observability";
 import type { ProgramId } from "@/lib/data";
 
 // Thin repository so the persistence layer stays swappable behind these calls.
@@ -53,8 +54,12 @@ export async function getPreviousLoads(
   program: ProgramId,
   beforeWeek: number,
 ): Promise<Record<string, { weight: number | null; reps: number | null; week: number }>> {
+  // DISTINCT ON (exercise_slug, set_index) keeps one row per coordinate; the ORDER BY
+  // makes that the latest week's heaviest set (week desc, weight desc) — the dedup the
+  // JS loop used to do, now in the DB. Backed by idx_log_prev_completed (partial,
+  // WHERE completed = true) so the planner walks only completed rows.
   const rows = await db
-    .select({
+    .selectDistinctOn([workoutLogs.exerciseSlug, workoutLogs.setIndex], {
       exerciseSlug: workoutLogs.exerciseSlug,
       setIndex: workoutLogs.setIndex,
       weight: workoutLogs.weight,
@@ -70,14 +75,16 @@ export async function getPreviousLoads(
         eq(workoutLogs.completed, true),
       ),
     )
-    .orderBy(desc(workoutLogs.week), desc(workoutLogs.weight));
+    .orderBy(
+      workoutLogs.exerciseSlug,
+      workoutLogs.setIndex,
+      desc(workoutLogs.week),
+      desc(workoutLogs.weight),
+    );
 
-  // First row per (exercise|setIndex) wins: week-descending, then heaviest first
-  // within a week, so the "last: N × R" hint reflects the documented heaviest set.
   const out: Record<string, { weight: number | null; reps: number | null; week: number }> = {};
   for (const r of rows) {
-    const key = `${r.exerciseSlug}|${r.setIndex}`;
-    if (!out[key]) out[key] = { weight: r.weight, reps: r.reps, week: r.week };
+    out[`${r.exerciseSlug}|${r.setIndex}`] = { weight: r.weight, reps: r.reps, week: r.week };
   }
   return out;
 }
@@ -131,7 +138,10 @@ export async function upsertSetLog(
       loggedAt: ctx.loggedAt,
     });
   } catch (err) {
-    console.error("[sessions] sync failed", { userId, program: input.program, week: input.week, daySlug: input.daySlug }, err);
+    await captureException(err, {
+      where: "sessions.sync",
+      extra: { userId, program: input.program, week: input.week, daySlug: input.daySlug },
+    });
   }
 
   return row;

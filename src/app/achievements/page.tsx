@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { getUserAchievements, getAchievementProgress } from "@/db/game";
+import { getUserAchievements, getAchievementProgress, getAchievementRarity } from "@/db/game";
 import { getUserById } from "@/db/users";
 import { ACHIEVEMENTS } from "@/lib/game/achievements";
 import { GamificationOff } from "@/components/GamificationOff";
@@ -26,10 +26,11 @@ export default async function AchievementsPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login?callbackUrl=/achievements");
 
-  const [user, earned, progress] = await Promise.all([
+  const [user, earned, progress, rarity] = await Promise.all([
     getUserById(session.user.id),
     getUserAchievements(session.user.id),
     getAchievementProgress(session.user.id),
+    getAchievementRarity(),
   ]);
 
   if (user?.gamificationOptOut) return <GamificationOff title="Trophy room" />;
@@ -79,7 +80,12 @@ export default async function AchievementsPage() {
                 {hiddenLocked ? "Keep training to discover this one." : a.description}
               </p>
               {got ? (
-                <p className="num mt-2 text-[11px] text-accent">Unlocked</p>
+                <p className="num mt-2 text-[11px] text-accent">
+                  Unlocked
+                  {typeof rarity[a.id] === "number" && (
+                    <span className="ml-1.5 text-faint">· {rarity[a.id]}% of lifters have this</span>
+                  )}
+                </p>
               ) : (
                 max != null &&
                 !hiddenLocked && (

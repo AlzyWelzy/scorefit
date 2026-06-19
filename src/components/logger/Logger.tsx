@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Check, Loader2, CloudOff, RotateCw, Trophy, Sparkles, TrendingUp } from "lucide-react";
+import { Check, CheckCheck, Loader2, CloudOff, RotateCw, Trophy, Sparkles, TrendingUp } from "lucide-react";
 import type { ProgramId } from "@/lib/data";
 import { saveSet, flushOutbox, pendingCount, type SaveState, type SetPayload, type GameResult } from "@/lib/logOutbox";
 
@@ -330,6 +330,7 @@ export function Logger({
                             type="button"
                             onClick={() => update(d.slug, ex.slug, i, { completed: !c.completed }, true)}
                             aria-label={c.completed ? "Mark set incomplete" : "Mark set complete"}
+                            aria-pressed={c.completed}
                             className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition-colors ${
                               st === "error"
                                 ? "border-hard bg-hard/15 text-hard"
@@ -344,8 +345,12 @@ export function Logger({
                               <RotateCw className="h-4 w-4" />
                             ) : st === "queued" ? (
                               <CloudOff className="h-4 w-4" />
+                            ) : c.completed ? (
+                              // Completed: a filled double-check with a heavier stroke — a
+                              // shape difference, not color alone (WCAG 1.4.1 use of color).
+                              <CheckCheck className="h-4 w-4" strokeWidth={3} />
                             ) : (
-                              <Check className="h-4 w-4" />
+                              <Check className="h-4 w-4" strokeWidth={2} />
                             )}
                           </button>
                         </div>

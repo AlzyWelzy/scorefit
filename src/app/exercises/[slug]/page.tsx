@@ -8,6 +8,10 @@ import { YouTubeFacade } from "@/components/YouTubeFacade";
 import { Stat, RpeBar } from "@/components/Readout";
 import { Reveal } from "@/components/motion/Reveal";
 import { videoId, thumbUrl } from "@/lib/youtube";
+import { videoObject, exerciseHowTo, breadcrumbs, ldJson } from "@/lib/structuredData";
+
+// Stable provenance date for the curated demo set (Google requires VideoObject.uploadDate).
+const DEMO_UPLOAD_DATE = "2026-01-01";
 
 export function generateStaticParams() {
   return exerciseLibrary.map((e) => ({ slug: e.slug }));
@@ -42,26 +46,36 @@ export default async function ExercisePage({
   const programs = Array.from(new Set(ex.appearsIn.map((a) => a.program))) as ProgramId[];
 
   const vid = videoId(ex.demo);
-  const videoLd = vid
-    ? {
-        "@context": "https://schema.org",
-        "@type": "VideoObject",
+  // HowTo steps from the coaching cues — split on sentence boundaries, trimmed/non-empty.
+  const cueSteps = ex.notes
+    ? ex.notes.split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter((s) => s.length > 0)
+    : [];
+  const ld: object[] = [
+    breadcrumbs([
+      { name: "Exercises", path: "/exercises" },
+      { name: ex.name, path: `/exercises/${ex.slug}` },
+    ]),
+  ];
+  if (vid) {
+    ld.push(
+      videoObject({
         name: ex.name,
         description: `${ex.name} — demonstration, coaching cues, and substitutions in the ScoreFit programs.`,
-        thumbnailUrl: thumbUrl(ex.demo, "hq"),
+        thumbnailUrl: thumbUrl(ex.demo, "hq") ?? `https://i.ytimg.com/vi/${vid}/hqdefault.jpg`,
         contentUrl: `https://www.youtube.com/watch?v=${vid}`,
         embedUrl: `https://www.youtube.com/embed/${vid}`,
-      }
-    : null;
+        uploadDate: DEMO_UPLOAD_DATE,
+      }),
+    );
+  }
+  if (cueSteps.length > 0) ld.push(exerciseHowTo({ name: ex.name, steps: cueSteps }));
 
   return (
     <div className="mx-auto max-w-5xl px-5 py-14">
-      {videoLd && (
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(videoLd) }}
-        />
-      )}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: ldJson(ld) }}
+      />
       <Reveal>
         <Link href="/exercises" className="eyebrow hover:text-fg">← Exercise library</Link>
         <div className="mt-3 flex flex-wrap items-center gap-2">

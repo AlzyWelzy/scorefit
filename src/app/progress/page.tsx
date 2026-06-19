@@ -6,6 +6,8 @@ import { buildWeekCoordinates, getProgramOrThrow, isProgramId, PROGRAM_META, typ
 import { getLogsForProgram } from "@/db/logs";
 import { getStreakSummary } from "@/db/streaks";
 import { getUserById } from "@/db/users";
+import { getBodyWeightHistory } from "@/db/bodyMetrics";
+import { BodyWeightTracker } from "@/components/BodyWeightTracker";
 import { e1rm } from "@/lib/strength";
 import { resolveLocalDate } from "@/lib/time";
 
@@ -27,18 +29,23 @@ export default async function ProgressPage({
   if (!session?.user?.id) redirect("/login?callbackUrl=/progress");
 
   const sp = await searchParams;
-  const program: ProgramId = sp.program && isProgramId(sp.program) ? sp.program : "beginner";
+  const user = await getUserById(session.user.id);
+  // Default to where the user is (their last-logged program), then beginner. An explicit
+  // ?program= always wins so the program switcher still works.
+  const program: ProgramId = sp.program && isProgramId(sp.program)
+    ? sp.program
+    : (user?.currentProgram ?? "beginner");
   const prog = getProgramOrThrow(program);
   const unit = session.user.unit;
-  const user = await getUserById(session.user.id);
   // Streak is a gamification mechanic — skip it (and hide its UI) when the user has
   // turned gamification off. Tonnage / e1RM / PR list are plain training data, kept.
   const gamificationOn = !user?.gamificationOptOut;
-  const [logs, streak] = await Promise.all([
+  const [logs, streak, bodyHistory] = await Promise.all([
     getLogsForProgram(session.user.id, program),
     gamificationOn
       ? getStreakSummary(session.user.id, resolveLocalDate(session.user.timezone))
       : Promise.resolve(null),
+    getBodyWeightHistory(session.user.id),
   ]);
 
   // Valid prescription coordinates per week, so stale logs (after a program
@@ -99,6 +106,7 @@ export default async function ProgressPage({
               </>
             )}
             <a href="/api/logs/export" className="text-faint hover:text-muted hover:underline">Export CSV</a>
+            <a href="/api/sessions/ics" className="text-faint hover:text-muted hover:underline">Calendar (.ics)</a>
           </div>
         </div>
         <div className="inline-flex overflow-hidden rounded-lg border border-line text-xs">
@@ -177,16 +185,20 @@ export default async function ProgressPage({
                 const pct = Math.round((t / maxTonnage) * 100);
                 return (
                   <div key={n} className="flex items-center gap-3">
-                    <span className="num w-12 shrink-0 text-xs text-faint">W{n}</span>
-                    <div className="h-7 flex-1 overflow-hidden rounded-md bg-surface-2">
+                    <span className="num w-12 shrink-0 text-xs text-faint" aria-hidden="true">W{n}</span>
+                    <div
+                      className="h-7 flex-1 overflow-hidden rounded-md bg-surface-2"
+                      role="img"
+                      aria-label={`Week ${n}: ${t.toLocaleString()} ${unit} tonnage, ${Math.min(d, p)} of ${p} prescribed sets completed`}
+                    >
                       <div
                         className="flex h-full items-center justify-end rounded-md bg-data/25 px-2"
                         style={{ width: `${Math.max(pct, t > 0 ? 6 : 0)}%` }}
                       >
-                        {t > 0 && <span className="num text-[11px] text-data">{t.toLocaleString()}</span>}
+                        {t > 0 && <span className="num text-[11px] text-data" aria-hidden="true">{t.toLocaleString()}</span>}
                       </div>
                     </div>
-                    <span className="num w-14 shrink-0 text-right text-xs text-muted">
+                    <span className="num w-14 shrink-0 text-right text-xs text-muted" aria-hidden="true">
                       {Math.min(d, p)}/{p}
                     </span>
                   </div>
@@ -219,6 +231,11 @@ export default async function ProgressPage({
           )}
         </>
       )}
+
+      <BodyWeightTracker
+        unit={unit}
+        history={bodyHistory.map((b) => ({ measuredOn: b.measuredOn, weight: b.weight }))}
+      />
     </div>
   );
 }

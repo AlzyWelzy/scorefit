@@ -25,6 +25,21 @@ export const CADENCE_XP = [0, 15, 25, 40, 60, 80] as const;
 export const PERFECT_WEEK_DAYS = 5;
 export const PERFECT_WEEK_XP = 50;
 
+// Daily XP ceiling: per local day, set/log-quality/PR XP earns full value up to the
+// soft cap, then at a quarter rate, then nothing past the hard cap — so a single
+// marathon (or farmed) day can't dominate. Cadence/perfect-week/achievement XP are
+// NOT day-rate-limited (they're already weekly/once). Tuned so a normal hard session
+// (≈10 prescribed sets fully logged ≈ 130 XP) is comfortably under the soft cap.
+export const DAILY_SOFT_CAP = 200;
+export const DAILY_HARD_CAP = 320;
+
+/** Apply the daily soft/hard cap to a day's pre-cap rate-limited XP subtotal. */
+export function applyDailyCap(rawDailyXp: number): number {
+  if (rawDailyXp <= DAILY_SOFT_CAP) return rawDailyXp;
+  const over = Math.min(rawDailyXp, DAILY_HARD_CAP) - DAILY_SOFT_CAP;
+  return Math.round(DAILY_SOFT_CAP + over * 0.25);
+}
+
 /** XP for a single set's completion. Only completed, in-prescription sets pay. */
 export function setCompletionXp(completed: boolean, isPrescribed: boolean): number {
   return completed && isPrescribed ? XP.prescribedSet : 0;

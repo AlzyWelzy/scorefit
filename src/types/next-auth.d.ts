@@ -19,5 +19,9 @@ declare module "next-auth/jwt" {
     unit?: "kg" | "lb";
     tz?: string;
     verified?: boolean;
+    // Session-revocation bookkeeping: the users.tokenVersion this token was minted
+    // with, and the epoch-ms of the last successful DB revocation check.
+    ver?: number;
+    verAt?: number;
   }
 }

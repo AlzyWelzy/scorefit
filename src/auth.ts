@@ -17,8 +17,9 @@ import { verifyPending, PENDING_2FA_COOKIE } from "@/lib/pending2fa";
 const credentialsSchema = z.object({
   email: z.email(),
   password: z.string().min(8),
-  // Present only on the 2FA second step.
-  code: z.string().optional(),
+  // Present only on the 2FA second step. Bounded so an unbounded string can't be
+  // fed into the verify path (TOTP is 6 digits, backup codes are 9 chars with dash).
+  code: z.string().max(16).optional(),
 });
 
 // Verify a 2FA code against the user's configured method, or a backup code.
@@ -105,13 +106,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     // Persist unit + verification + session version on the token at sign-in;
     // refresh on update() and on a bounded cadence (for revocation).
     async jwt({ token, user, trigger }) {
-      const t = token as typeof token & {
-        unit?: "kg" | "lb";
-        tz?: string;
-        verified?: boolean;
-        ver?: number;
-        verAt?: number;
-      };
+      // ver/verAt/unit/tz/verified are declared on the JWT (see next-auth.d.ts), so
+      // no ad-hoc cast is needed here.
+      const t = token;
       if (user) {
         t.unit = (user as { unit?: "kg" | "lb" }).unit ?? "kg";
         t.tz = (user as { timezone?: string }).timezone ?? "UTC";
@@ -124,8 +121,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // session within ~5 min at bounded cost. The read is wrapped so a transient
       // DB blip can't throw out of the callback and break auth site-wide.
       const STALE_MS = 5 * 60 * 1000;
+      const verAt = typeof t.verAt === "number" ? t.verAt : undefined;
       const needsRefresh =
-        trigger === "update" || t.verAt === undefined || Date.now() - t.verAt > STALE_MS;
+        trigger === "update" || verAt === undefined || Date.now() - verAt > STALE_MS;
       if (needsRefresh && t.sub) {
         let fresh;
         try {
@@ -146,7 +144,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           // honored without a successful revocation check: past a hard ceiling,
           // force re-auth so a revoked session can't survive an extended outage.
           const HARD_CEILING_MS = 30 * 60 * 1000;
-          if (t.verAt !== undefined && Date.now() - t.verAt > HARD_CEILING_MS) return null;
+          if (verAt !== undefined && Date.now() - verAt > HARD_CEILING_MS) return null;
           return t;
         }
         // The read above succeeded (infra errors throw and are caught), so these

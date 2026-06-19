@@ -23,7 +23,17 @@ export type AchievementContext = {
   hasAnyPr: boolean;
   daysSinceLastSession: number | null;
   unit: "kg" | "lb";
+  // Breadth + honesty signals (computed in the engine from completed logs).
+  distinctArchetypes: number; // distinct movement patterns trained (of ARCHETYPE_COUNT)
+  distinctEquipment: number; // distinct equipment classes used (of EQUIPMENT_COUNT)
+  rpeSetCount: number; // completed sets logged with a sane RPE
+  pushSets: number; // completed pressing/triceps sets
+  pullSets: number; // completed pulling/curl sets
 };
+
+// Totals the collection badges target — kept in sync with movement.ts.
+export const ARCHETYPE_COUNT = 11;
+export const EQUIPMENT_COUNT = 6;
 
 export type AchievementResult = {
   unlocked: boolean;
@@ -107,6 +117,36 @@ export const ACHIEVEMENTS: AchievementRule[] = [
     },
   },
   {
+    id: "movement_master",
+    category: "collection",
+    title: "Movement Master",
+    description: "Train every movement pattern — pressing, pulling, hinge, squat, and the rest.",
+    progressKey: "collection:archetypes",
+    evaluate: (c) => {
+      const t = tiered(c.distinctArchetypes, [
+        { tier: "bronze", threshold: 5 },
+        { tier: "silver", threshold: 8 },
+        { tier: "gold", threshold: ARCHETYPE_COUNT },
+      ]);
+      return { unlocked: t.unlocked, tier: t.tier, progressValue: c.distinctArchetypes, progressMax: t.next };
+    },
+  },
+  {
+    id: "tool_collector",
+    category: "collection",
+    title: "Tool Collector",
+    description: "Use every equipment class — barbell, dumbbell, cable, machine, smith, bodyweight.",
+    progressKey: "collection:equipment",
+    evaluate: (c) => {
+      const t = tiered(c.distinctEquipment, [
+        { tier: "bronze", threshold: 3 },
+        { tier: "silver", threshold: 5 },
+        { tier: "gold", threshold: EQUIPMENT_COUNT },
+      ]);
+      return { unlocked: t.unlocked, tier: t.tier, progressValue: c.distinctEquipment, progressMax: t.next };
+    },
+  },
+  {
     id: "volume_landmark",
     category: "volume",
     title: "Tonnage Landmark",
@@ -118,12 +158,52 @@ export const ACHIEVEMENTS: AchievementRule[] = [
         { tier: "silver", threshold: 100_000 },
         { tier: "gold", threshold: 500_000 },
       ]);
+      // Evocative landmark name for the reached tier (the doc's "Moved a Bus" idea).
+      const landmark =
+        t.tier === "gold" ? "Moved a Bus" : t.tier === "silver" ? "Moved a Rhino" : t.tier === "bronze" ? "Moved a Piano" : null;
       return {
         unlocked: t.unlocked,
         tier: t.tier,
         progressValue: Math.round(c.lifetimeTonnage),
         progressMax: t.next,
-        evidence: { unit: c.unit },
+        evidence: { unit: c.unit, landmark },
+      };
+    },
+  },
+  {
+    id: "honest_logger",
+    category: "consistency",
+    title: "Honest Logger",
+    description: "Log a sane RPE on your sets. Rewards complete, truthful records — never heavier loads.",
+    progressKey: "consistency:rpe_sets",
+    evaluate: (c) => {
+      const t = tiered(c.rpeSetCount, [
+        { tier: "bronze", threshold: 50 },
+        { tier: "silver", threshold: 200 },
+        { tier: "gold", threshold: 500 },
+      ]);
+      return { unlocked: t.unlocked, tier: t.tier, progressValue: c.rpeSetCount, progressMax: t.next };
+    },
+  },
+  {
+    id: "balanced",
+    category: "hidden",
+    title: "Balanced",
+    description: "Keep pushing and pulling volume within 25% of each other — balanced, healthy programming.",
+    hidden: true,
+    progressKey: "hidden:balanced",
+    evaluate: (c) => {
+      const total = c.pushSets + c.pullSets;
+      // Require a meaningful sample before judging balance.
+      const enough = total >= 40 && c.pushSets > 0 && c.pullSets > 0;
+      const ratio = enough ? Math.min(c.pushSets, c.pullSets) / Math.max(c.pushSets, c.pullSets) : 0;
+      const balanced = enough && ratio >= 0.75; // within 25%
+      return {
+        unlocked: balanced,
+        tier: null,
+        progressValue: Math.round(ratio * 100),
+        progressMax: 100,
+        evidence: { pushSets: c.pushSets, pullSets: c.pullSets },
       };
     },
   },

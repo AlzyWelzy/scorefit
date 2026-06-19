@@ -122,6 +122,26 @@ export async function setTimezone(id: string, timezone: string): Promise<void> {
 }
 
 /**
+ * Remember where the user is in their training — the program/week the logger and
+ * TodayCard resume to. Stamps startedAt on the first time a program is set, so the
+ * app can later suggest a week from elapsed time. Idempotent on repeat calls.
+ */
+export async function setCurrentPosition(
+  id: string,
+  program: "beginner" | "intermediate",
+  week: number,
+): Promise<void> {
+  await db
+    .update(users)
+    .set({
+      currentProgram: program,
+      currentWeek: week,
+      startedAt: sql`coalesce(${users.startedAt}, now())`,
+    })
+    .where(eq(users.id, id));
+}
+
+/**
  * Flip the hard "disable all gamification" switch. Turning it ON also forces the user
  * off the leaderboards — you can't compete on a public board while the mechanics that
  * feed it are disabled for you. Turning it back OFF re-enables the engine but does NOT
