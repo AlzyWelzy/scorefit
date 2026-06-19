@@ -2,6 +2,9 @@ import { beginner } from "@/data/beginner";
 import { intermediate } from "@/data/intermediate";
 import { exerciseLibrary } from "@/data/exerciseLibrary";
 import { guidebook } from "@/data/guidebook";
+import type { Program } from "@/lib/programTypes";
+
+export type { Program, ProgramWeek, ProgramDay, ProgramExercise, GuideSection, ExerciseLibraryItem } from "@/lib/programTypes";
 
 export type ProgramId = "beginner" | "intermediate";
 
@@ -13,10 +16,12 @@ export function isProgramId(v: string): v is ProgramId {
   return (PROGRAM_IDS as readonly string[]).includes(v);
 }
 
-export const PROGRAMS = {
-  beginner,
-  intermediate,
-} as const;
+// The generated JSON is a structural superset of Program, so this cast is sound and
+// gives every consumer a real typed shape (no more regex shape-sniffing).
+export const PROGRAMS: Record<ProgramId, Program> = {
+  beginner: beginner as unknown as Program,
+  intermediate: intermediate as unknown as Program,
+};
 
 export const PROGRAM_META: Record<
   ProgramId,

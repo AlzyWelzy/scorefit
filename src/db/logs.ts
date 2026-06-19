@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { workoutLogs, type WorkoutLog } from "@/db/schema";
@@ -24,12 +25,17 @@ export async function getLogsForWeek(
     );
 }
 
-export async function getLogsForProgram(userId: string, program: ProgramId): Promise<WorkoutLog[]> {
-  return db
-    .select()
-    .from(workoutLogs)
-    .where(and(eq(workoutLogs.userId, userId), eq(workoutLogs.program, program)));
-}
+// Request-memoized: the /progress render reads a program's logs once and several
+// derived views (tonnage, e1RM PRs, per-muscle volume) reuse the same array — cache()
+// dedupes repeat calls within a single server request. Backed by idx_log_user_program.
+export const getLogsForProgram = cache(
+  async (userId: string, program: ProgramId): Promise<WorkoutLog[]> => {
+    return db
+      .select()
+      .from(workoutLogs)
+      .where(and(eq(workoutLogs.userId, userId), eq(workoutLogs.program, program)));
+  },
+);
 
 export type SetLogInput = {
   program: ProgramId;
