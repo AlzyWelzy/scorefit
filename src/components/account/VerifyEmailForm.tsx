@@ -145,14 +145,14 @@ export function VerifyEmailForm({ changing = false }: { changing?: boolean }) {
           maxLength={6}
           autoComplete="one-time-code"
           aria-label="6-digit verification code"
-          className="num w-full rounded-lg border border-line bg-bg px-3 py-2.5 text-2xl tracking-[0.5em] text-center text-fg focus:border-accent focus:outline-none"
+          className="num w-full rounded-lg border border-line bg-bg px-3 py-2.5 text-2xl tracking-[0.5em] text-center text-data transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
         />
       </label>
 
       <button
         type="submit"
         disabled={busy || code.length !== 6}
-        className="w-full rounded-lg bg-accent px-4 py-2.5 font-semibold text-bg transition-colors hover:bg-accent-2 disabled:opacity-60"
+        className="btn-accent w-full disabled:opacity-60"
       >
         {busy ? "Verifying…" : "Verify"}
       </button>

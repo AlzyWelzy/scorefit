@@ -33,9 +33,9 @@ export default function ExercisesPage() {
   return (
     <div className="mx-auto max-w-6xl px-5 py-14">
       <Reveal>
-        <span className="eyebrow">Movement library</span>
-        <h1 className="mt-2.5 flex items-baseline gap-3 font-display text-4xl font-bold tracking-tight sm:text-5xl">
-          <CountUp to={53} className="num text-accent" /> exercises
+        <span className="eyebrow-accent">Movement library</span>
+        <h1 className="display-tight mt-2.5 flex items-baseline gap-3 font-display text-4xl font-bold tracking-tight sm:text-5xl">
+          <CountUp to={53} className="num gradient-text" /> exercises
         </h1>
         <p className="mt-4 max-w-xl text-muted">
           Every movement in both programs. Filter by pattern or equipment — each has a demo

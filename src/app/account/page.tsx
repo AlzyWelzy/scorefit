@@ -23,8 +23,10 @@ export default async function AccountPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-5 py-12">
-      <span className="eyebrow">Settings</span>
-      <h1 className="mt-1 font-display text-3xl font-bold tracking-tight">Account</h1>
+      <span className="eyebrow-accent">Settings</span>
+      <h1 className="display-tight mt-1 font-display text-3xl font-bold">
+        <span className="gradient-text">Account</span>
+      </h1>
       <p className="mt-1.5 text-sm text-muted">
         Manage your profile, sign-in details and unit preference.
       </p>

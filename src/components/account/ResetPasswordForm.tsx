@@ -59,7 +59,7 @@ export function ResetPasswordForm({ email: initialEmail }: { email: string }) {
         </p>
         <Link
           href="/login"
-          className="block w-full rounded-lg bg-accent px-4 py-2.5 text-center font-semibold text-bg transition-colors hover:bg-accent-2"
+          className="btn-accent w-full"
         >
           Go to sign in
         </Link>
@@ -114,7 +114,7 @@ export function ResetPasswordForm({ email: initialEmail }: { email: string }) {
       <button
         type="submit"
         disabled={busy}
-        className="w-full rounded-lg bg-accent px-4 py-2.5 font-semibold text-bg transition-colors hover:bg-accent-2 disabled:opacity-60"
+        className="btn-accent w-full disabled:opacity-60"
       >
         {busy ? "Resetting…" : "Reset password"}
       </button>

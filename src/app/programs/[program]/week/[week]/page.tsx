@@ -53,10 +53,10 @@ export default async function WeekPage({
   return (
     <div className="mx-auto max-w-6xl px-5 py-12">
       <Reveal>
-        <Link href={`/programs/${program}`} className="eyebrow hover:text-fg">← {p.name}</Link>
+        <Link href={`/programs/${program}`} className="eyebrow-accent hover:text-fg">← {p.name}</Link>
         <div className="mt-3 flex flex-wrap items-baseline gap-3">
-          <h1 className="font-display text-4xl font-bold tracking-tight sm:text-5xl">
-            Week <span className="num">{weekNum}</span>
+          <h1 className="display-tight font-display text-4xl font-bold sm:text-5xl">
+            Week <span className="num gradient-text">{weekNum}</span>
           </h1>
           <span className="rounded border border-line bg-surface px-2 py-0.5 text-sm text-muted">{blockFor(weekNum)} block</span>
           {deload && <span className="rounded border border-accent/25 bg-accent-dim px-2 py-0.5 text-sm text-accent-2">Intro / deload</span>}
@@ -64,8 +64,8 @@ export default async function WeekPage({
         </div>
         {w.subtitle && <p className="mt-2 italic text-muted">{w.subtitle}</p>}
         {deload && (
-          <div className="mt-5 flex gap-3 rounded-card border border-line bg-surface p-4">
-            <Info className="h-5 w-5 shrink-0 text-data" />
+          <div className="glass mt-5 flex gap-3 p-4">
+            <Info className="h-5 w-5 shrink-0 rounded-full text-data glow-data-soft" />
             <p className="text-sm text-muted">
               Intro / deload week — sets stop short of failure to learn the lifts and
               recover. Use lighter loads and leave reps in the tank.
@@ -77,7 +77,7 @@ export default async function WeekPage({
       <div className="mt-10 gap-10 lg:grid lg:grid-cols-[180px_1fr]">
         {/* sticky day rail */}
         <div className="sticky top-20 z-30 -mx-5 mb-6 border-b border-line bg-bg/85 px-5 py-3 backdrop-blur lg:mx-0 lg:mb-0 lg:self-start lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
-          <span className="eyebrow mb-2 hidden lg:block">Training days</span>
+          <span className="eyebrow-accent mb-2 hidden lg:block">Training days</span>
           <DayNav days={navDays} />
         </div>
 
@@ -105,12 +105,12 @@ export default async function WeekPage({
 
           <div className="flex items-center justify-between border-t border-line pt-6">
             {prev ? (
-              <Link href={`/programs/${program}/week/${prev}`} className="inline-flex items-center gap-2 text-muted hover:text-fg">
+              <Link href={`/programs/${program}/week/${prev}`} className="btn-surface inline-flex items-center gap-2">
                 <ArrowLeft className="h-4 w-4" /> Week {prev}
               </Link>
             ) : <span />}
             {next ? (
-              <Link href={`/programs/${program}/week/${next}`} className="inline-flex items-center gap-2 text-muted hover:text-fg">
+              <Link href={`/programs/${program}/week/${next}`} className="btn-accent inline-flex items-center gap-2">
                 Week {next} <ArrowRight className="h-4 w-4" />
               </Link>
             ) : <span className="num text-sm text-faint">Loop → Week 1 (deload)</span>}

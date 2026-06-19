@@ -27,10 +27,10 @@ export function VolumeChart({ compact = false }: { compact?: boolean }) {
     ).join(", ") +
     ".";
   return (
-    <div className="rounded-card border border-line bg-surface p-5">
+    <div className="glass p-5">
       <div className="mb-5 flex items-baseline justify-between">
         <h3 className="font-display text-lg font-semibold">Weekly volume ramp</h3>
-        <span className="eyebrow">sets / week</span>
+        <span className="eyebrow-accent">sets / week</span>
       </div>
       <div className="flex items-end gap-1.5" style={{ height: rowH }} role="img" aria-label={summary}>
         {WEEKS.map((w, i) => {
@@ -46,7 +46,11 @@ export function VolumeChart({ compact = false }: { compact?: boolean }) {
                   animationDelay: `${i * 0.04}s`,
                   background: w.deload
                     ? `repeating-linear-gradient(45deg, ${color}, ${color} 3px, transparent 3px, transparent 6px)`
-                    : `linear-gradient(to top, ${color}, color-mix(in srgb, ${color} 55%, transparent))`,
+                    : `linear-gradient(to top, ${color}, color-mix(in srgb, var(--color-accent-glow, ${color}) 70%, ${color}))`,
+                  boxShadow:
+                    w.block === "R" && !w.deload
+                      ? "0 0 16px -2px color-mix(in srgb, var(--color-accent-glow, var(--color-accent)) 65%, transparent)"
+                      : undefined,
                   opacity: w.deload ? 0.75 : 1,
                 }}
               />

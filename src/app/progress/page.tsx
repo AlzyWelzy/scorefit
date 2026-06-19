@@ -117,8 +117,10 @@ export default async function ProgressPage({
     <div className="mx-auto max-w-3xl px-5 py-12">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <span className="eyebrow">Progress · {PROGRAM_META[program].name}</span>
-          <h1 className="mt-1 font-display text-3xl font-bold tracking-tight">Your training</h1>
+          <span className="eyebrow-accent">Progress · {PROGRAM_META[program].name}</span>
+          <h1 className="display-tight mt-1 font-display text-3xl font-bold">
+            <span className="gradient-text-data">Your training</span>
+          </h1>
           <div className="mt-1 flex flex-wrap gap-3 text-xs">
             {gamificationOn && (
               <>
@@ -135,7 +137,7 @@ export default async function ProgressPage({
             <Link
               key={p}
               href={`/progress?program=${p}`}
-              className={`px-3 py-1.5 ${p === program ? "bg-accent text-bg" : "text-muted hover:text-fg"}`}
+              className={`px-3 py-1.5 transition-colors ${p === program ? "btn-accent rounded-none" : "text-muted hover:text-fg"}`}
             >
               {PROGRAM_META[p].shortLabel}
             </Link>
@@ -188,7 +190,7 @@ export default async function ProgressPage({
       )}
 
       {logs.length === 0 ? (
-        <p className="mt-10 rounded-card border border-line bg-surface px-5 py-10 text-center text-muted">
+        <p className="glass mt-10 px-5 py-10 text-center text-muted">
           No sets logged yet. <Link href="/log" className="text-accent hover:underline">Start logging →</Link>
         </p>
       ) : (
@@ -208,15 +210,23 @@ export default async function ProgressPage({
                   <div key={n} className="flex items-center gap-3">
                     <span className="num w-12 shrink-0 text-xs text-faint" aria-hidden="true">W{n}</span>
                     <div
-                      className="h-7 flex-1 overflow-hidden rounded-md bg-surface-2"
+                      className="h-7 flex-1 overflow-hidden rounded-md bg-surface-2 ring-1 ring-inset ring-line/60"
                       role="img"
                       aria-label={`Week ${n}: ${t.toLocaleString()} ${unit} tonnage, ${Math.min(d, p)} of ${p} prescribed sets completed`}
                     >
                       <div
-                        className="flex h-full items-center justify-end rounded-md bg-data/25 px-2"
-                        style={{ width: `${Math.max(pct, t > 0 ? 6 : 0)}%` }}
+                        className="flex h-full items-center justify-end rounded-md px-2"
+                        style={{
+                          width: `${Math.max(pct, t > 0 ? 6 : 0)}%`,
+                          background:
+                            "linear-gradient(90deg, color-mix(in srgb, var(--color-data) 20%, transparent), color-mix(in srgb, var(--color-data) 42%, transparent))",
+                          boxShadow:
+                            t > 0
+                              ? "0 0 18px -4px color-mix(in srgb, var(--color-accent-glow, var(--color-data)) 55%, transparent)"
+                              : undefined,
+                        }}
                       >
-                        {t > 0 && <span className="num text-[11px] text-data" aria-hidden="true">{t.toLocaleString()}</span>}
+                        {t > 0 && <span className="num text-[11px] font-medium text-data" aria-hidden="true">{t.toLocaleString()}</span>}
                       </div>
                     </div>
                     <span className="num w-14 shrink-0 text-right text-xs text-muted" aria-hidden="true">
@@ -234,11 +244,11 @@ export default async function ProgressPage({
               <h2 className="eyebrow mb-3">
                 Estimated 1RM by exercise <span className="text-faint">(best set, Epley · {unit})</span>
               </h2>
-              <div className="overflow-hidden rounded-card border border-line">
+              <div className="card overflow-hidden p-0">
                 {prs.map((pr) => (
                   <div
                     key={pr.name}
-                    className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5 last:border-0"
+                    className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5 transition-colors last:border-0 hover:bg-surface-2/50"
                   >
                     <span className="truncate text-sm text-fg">{pr.name}</span>
                     <span className="num shrink-0 text-xs text-muted">
@@ -308,8 +318,8 @@ const ZONE_BAR: Record<VolumeZone, string> = {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-card border border-line bg-surface px-4 py-3">
-      <div className="num text-2xl font-bold text-fg">{value}</div>
+    <div className="card card-hover px-4 py-3">
+      <div className="num text-data text-2xl font-bold">{value}</div>
       <div className="eyebrow mt-0.5">{label}</div>
     </div>
   );

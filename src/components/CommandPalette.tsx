@@ -147,8 +147,8 @@ export function CommandPalette({ index }: { index: SearchEntry[] }) {
       aria-modal="true"
       aria-label="Search ScoreFit"
     >
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={close} />
-      <div className="relative w-full max-w-xl overflow-hidden rounded-card border border-line-2 bg-surface shadow-2xl">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-md" onClick={close} />
+      <div className="glass-strong ring-accent relative w-full max-w-xl overflow-hidden">
         <div className="flex items-center gap-3 border-b border-line px-4">
           <Search className="h-4 w-4 shrink-0 text-faint" />
           <input
@@ -212,8 +212,8 @@ export function CommandPalette({ index }: { index: SearchEntry[] }) {
                         data-idx={idx}
                         onMouseMove={() => setActive(idx)}
                         onClick={() => go(r)}
-                        className={`flex w-full items-center gap-3 px-4 py-2.5 text-left ${
-                          isActive ? "bg-surface-3" : ""
+                        className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors ${
+                          isActive ? "bg-linear-to-r from-accent/12 to-transparent text-fg ring-accent" : "hover:bg-surface/60"
                         }`}
                       >
                         <Icon className={`h-4 w-4 shrink-0 ${isActive ? "text-accent" : "text-faint"}`} />

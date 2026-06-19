@@ -16,7 +16,8 @@ const NAV = [
 
 export function SiteHeader() {
   return (
-    <header className="sticky top-0 z-50 border-b border-line bg-bg/80 backdrop-blur-xl">
+    <header className="glass sticky top-0 z-50 rounded-none border-x-0 border-t-0">
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-linear-to-r from-transparent via-accent/30 to-transparent" />
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5">
         <Logo size={25} />
         <nav aria-label="Primary" className="hidden items-center gap-0.5 md:flex">
@@ -24,7 +25,7 @@ export function SiteHeader() {
             <NavLink
               key={n.href}
               href={n.href}
-              className="rounded-lg px-3 py-2 text-sm text-muted transition-colors hover:bg-surface hover:text-fg aria-[current=page]:bg-surface aria-[current=page]:text-fg"
+              className="rounded-lg px-3 py-2 text-sm font-medium text-muted transition-all hover:bg-surface hover:text-fg aria-[current=page]:bg-linear-to-b aria-[current=page]:from-accent/15 aria-[current=page]:to-accent/5 aria-[current=page]:text-fg aria-[current=page]:ring-accent"
             >
               {n.label}
             </NavLink>
@@ -36,7 +37,7 @@ export function SiteHeader() {
           <AuthNav />
           <Link
             href="/programs"
-            className="group relative inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-bg transition-all hover:bg-accent-2"
+            className="btn-accent inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold"
           >
             Start
           </Link>
@@ -47,7 +48,7 @@ export function SiteHeader() {
           <NavLink
             key={n.href}
             href={n.href}
-            className="whitespace-nowrap rounded-lg px-3 py-1.5 text-sm text-muted hover:text-fg aria-[current=page]:text-fg"
+            className="whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium text-muted transition-colors hover:text-fg aria-[current=page]:font-semibold aria-[current=page]:text-accent-2"
           >
             {n.label}
           </NavLink>

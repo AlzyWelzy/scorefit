@@ -48,7 +48,7 @@ export function ForgotPasswordForm() {
         </p>
         <Link
           href={`/reset-password?email=${encodeURIComponent(email)}`}
-          className="block w-full rounded-lg bg-accent px-4 py-2.5 text-center font-semibold text-bg transition-colors hover:bg-accent-2"
+          className="btn-accent w-full"
         >
           I have a code — continue
         </Link>
@@ -82,7 +82,7 @@ export function ForgotPasswordForm() {
       <button
         type="submit"
         disabled={busy}
-        className="w-full rounded-lg bg-accent px-4 py-2.5 font-semibold text-bg transition-colors hover:bg-accent-2 disabled:opacity-60"
+        className="btn-accent w-full disabled:opacity-60"
       >
         {busy ? "Sending…" : "Send reset code"}
       </button>

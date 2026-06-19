@@ -3,12 +3,15 @@
    - install: take over immediately.
    - activate: claim clients, drop stale caches.
    - fetch: same-origin GET (navigation/static) -> stale-while-revalidate.
-            i.ytimg.com image GET -> cache-first.
-            everything else (POST /api/logs, cross-origin API) -> not intercepted;
-            the app's own localStorage outbox handles offline writes.
+            everything else (POST /api/logs, cross-origin API, cross-origin images
+            like i.ytimg.com thumbnails) -> NOT intercepted. The browser fetches
+            them directly; i.ytimg.com already sends cache-control: max-age, so the
+            HTTP cache handles thumbnails. Intercepting cross-origin no-cors image
+            requests produced opaque responses that rendered blank in production.
+            The app's own localStorage outbox handles offline writes.
    Nothing here should ever break navigation. */
 
-const CACHE = "scorefit-v1";
+const CACHE = "scorefit-v2";
 
 self.addEventListener("install", () => {
   self.skipWaiting();
@@ -48,21 +51,6 @@ async function staleWhileRevalidate(request) {
   }
 }
 
-async function cacheFirst(request) {
-  try {
-    const cache = await caches.open(CACHE);
-    const cached = await cache.match(request);
-    if (cached) return cached;
-    const response = await fetch(request);
-    if (response && response.ok) {
-      cache.put(request, response.clone()).catch(() => {});
-    }
-    return response;
-  } catch (_e) {
-    return fetch(request);
-  }
-}
-
 self.addEventListener("fetch", (event) => {
   try {
     const request = event.request;
@@ -72,19 +60,15 @@ self.addEventListener("fetch", (event) => {
 
     const url = new URL(request.url);
 
-    // YouTube thumbnails: cache-first.
-    if (url.hostname === "i.ytimg.com" && request.destination === "image") {
-      event.respondWith(cacheFirst(request));
-      return;
-    }
-
     // Same-origin navigation + static assets: stale-while-revalidate.
     if (url.origin === self.location.origin) {
       event.respondWith(staleWhileRevalidate(request));
       return;
     }
 
-    // Cross-origin (third-party APIs, etc.): don't intercept.
+    // Cross-origin (third-party APIs, i.ytimg.com images, etc.): don't intercept.
+    // Re-fetching a no-cors cross-origin image request yields an opaque response
+    // that renders blank; let the browser fetch it directly instead.
     return;
   } catch (_e) {
     // Never break the request pipeline.

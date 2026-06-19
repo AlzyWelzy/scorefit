@@ -233,9 +233,9 @@ export function Logger({
     <div className="mx-auto max-w-3xl px-5 py-12">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <span className="eyebrow">Logger · {programName}</span>
-          <h1 className="mt-1 font-display text-3xl font-bold tracking-tight">
-            Week <span className="num">{week}</span>
+          <span className="eyebrow-accent">Logger · {programName}</span>
+          <h1 className="display-tight mt-1 font-display text-3xl font-bold">
+            Week <span className="num gradient-text">{week}</span>
           </h1>
         </div>
         <div className="inline-flex overflow-hidden rounded-lg border border-line text-xs">
@@ -243,7 +243,7 @@ export function Logger({
             <Link
               key={p}
               href={`/log?program=${p}&week=1`}
-              className={`px-3 py-1.5 ${p === program ? "bg-accent text-bg" : "text-muted hover:text-fg"}`}
+              className={`px-3 py-1.5 transition-colors ${p === program ? "btn-accent rounded-none" : "text-muted hover:text-fg"}`}
             >
               {p === "beginner" ? "Beginner" : "Int / Adv"}
             </Link>
@@ -272,7 +272,7 @@ export function Logger({
 
       {/* first-run onboarding nudge */}
       {initialLogs.length === 0 && Object.keys(prevLoads).length === 0 && (
-        <div className="mt-4 flex gap-3 rounded-card border border-line bg-surface p-4 text-sm text-muted">
+        <div className="glass mt-4 flex gap-3 p-4 text-sm text-muted">
           <span aria-hidden className="text-lg">👋</span>
           <p>
             Log a weight and reps for each set, then tap the check to mark it done. Your loads carry
@@ -290,8 +290,8 @@ export function Logger({
           <Link
             key={n}
             href={`/log?program=${program}&week=${n}`}
-            className={`num rounded-lg border px-2.5 py-1 text-xs ${
-              n === week ? "border-accent text-accent" : "border-line text-muted hover:text-fg"
+            className={`num rounded-lg border px-2.5 py-1 text-xs transition-colors ${
+              n === week ? "ring-accent border-accent text-accent" : "border-line text-muted hover:border-line-2 hover:text-fg"
             }`}
           >
             {n}
@@ -331,7 +331,7 @@ export function Logger({
             <h2 className="mb-3 border-b border-line pb-2 font-display text-lg font-semibold">{d.title}</h2>
             <div className="space-y-5">
               {d.exercises.map((ex) => (
-                <div key={ex.slug} className="rounded-card border border-line bg-surface p-4">
+                <div key={ex.slug} className="glass p-4">
                   <div className="mb-3 flex items-baseline justify-between gap-3">
                     <h3 className="font-display font-semibold text-fg">{ex.name}</h3>
                     <div className="flex shrink-0 items-center gap-2">
@@ -371,7 +371,7 @@ export function Logger({
                               value={c.weight}
                               onChange={(e) => update(d.slug, ex.slug, i, { weight: e.target.value })}
                               aria-label={`Set ${i} weight in ${unitLabel}`}
-                              className="num w-full rounded-lg border border-line bg-bg px-2.5 py-2 text-base text-fg focus:border-accent focus:outline-none"
+                              className="num w-full rounded-lg border border-line bg-bg px-2.5 py-2 text-base text-fg transition-colors focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
                             />
                           </div>
                           <span className="text-faint">×</span>
@@ -382,7 +382,7 @@ export function Logger({
                             value={c.reps}
                             onChange={(e) => update(d.slug, ex.slug, i, { reps: e.target.value })}
                             aria-label={`Set ${i} reps`}
-                            className="num w-0 flex-1 rounded-lg border border-line bg-bg px-2.5 py-2 text-base text-fg focus:border-accent focus:outline-none"
+                            className="num w-0 flex-1 rounded-lg border border-line bg-bg px-2.5 py-2 text-base text-fg transition-colors focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
                           />
                           {rpeOpen[ex.slug] && (
                             <input
@@ -395,7 +395,7 @@ export function Logger({
                               value={c.rpe}
                               onChange={(e) => update(d.slug, ex.slug, i, { rpe: e.target.value })}
                               aria-label={`Set ${i} RPE`}
-                              className="num w-14 shrink-0 rounded-lg border border-line bg-bg px-2 py-2 text-base text-fg focus:border-accent focus:outline-none"
+                              className="num w-14 shrink-0 rounded-lg border border-line bg-bg px-2 py-2 text-base text-fg transition-colors focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
                             />
                           )}
                           <button

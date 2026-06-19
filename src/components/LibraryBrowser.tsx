@@ -88,7 +88,7 @@ export function LibraryBrowser({
       </div>
 
       {filtered.length === 0 ? (
-        <p className="mt-12 rounded-card border border-line bg-surface px-5 py-10 text-center text-muted">
+        <p className="card mt-12 px-5 py-10 text-center text-muted">
           No exercises match those filters.
         </p>
       ) : (
@@ -120,8 +120,11 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
   return (
     <button
       onClick={onClick}
-      className={`rounded-lg border px-3 py-1.5 text-xs transition-colors ${
-        active ? "border-accent bg-accent-dim text-accent-2" : "border-line text-muted hover:border-line-2 hover:text-fg"
+      aria-pressed={active}
+      className={`rounded-lg border px-3 py-1.5 text-xs transition-all ${
+        active
+          ? "border-accent/60 bg-accent-dim font-medium text-accent-2 ring-accent glow-accent"
+          : "border-line text-muted hover:-translate-y-px hover:border-line-2 hover:text-fg"
       }`}
     >
       {children}

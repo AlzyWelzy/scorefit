@@ -3,7 +3,8 @@ import { Logo } from "./Logo";
 
 export function Footer() {
   return (
-    <footer className="mt-28 border-t border-line">
+    <footer className="relative mt-28 border-t border-line">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-data/25 to-transparent" />
       <div className="mx-auto grid max-w-6xl gap-10 px-5 py-14 sm:grid-cols-2 md:grid-cols-4">
         <div className="sm:col-span-2 md:col-span-1">
           <Logo size={24} />
@@ -13,8 +14,8 @@ export function Footer() {
           </p>
         </div>
         <FooterCol title="Train" links={[["/programs/beginner", "Beginner"], ["/programs/intermediate", "Intermediate / Advanced"], ["/exercises", "Exercise library"]]} />
-        <FooterCol title="Learn" links={[["/guidebook", "Guidebook"], ["/guidebook/the-6-training-principles", "Training principles"], ["/guidebook/bodybuilding-nutrition", "Nutrition"], ["/guidebook/faq", "FAQ"]]} />
-        <FooterCol title="Reference" links={[["/guidebook/muscle-anatomy-how-each-muscle-is-trained", "Anatomy"], ["/guidebook/bodybuilding-supplements", "Supplements"], ["/guidebook/references-clickable-in-the-original-guidebook", "References"]]} />
+        <FooterCol title="Learn" links={[["/guidebook", "Guidebook"], ["/guidebook/the-6-training-principles", "Training principles"], ["/guidebook/warming-up-properly", "Warming up"], ["/guidebook/bodybuilding-nutrition", "Nutrition"], ["/guidebook/sleep-and-recovery", "Sleep & recovery"], ["/guidebook/faq", "FAQ"]]} />
+        <FooterCol title="Reference" links={[["/guidebook/muscle-anatomy-how-each-muscle-is-trained", "Anatomy"], ["/guidebook/bodybuilding-supplements", "Supplements"], ["/guidebook/glossary-key-terms", "Glossary"], ["/guidebook/references-clickable-in-the-original-guidebook", "References"]]} />
       </div>
       <div className="border-t border-line">
         <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-2 px-5 py-5 text-xs text-faint sm:flex-row sm:items-center">
@@ -33,7 +34,7 @@ function FooterCol({ title, links }: { title: string; links: [string, string][] 
       <ul className="space-y-2.5">
         {links.map(([href, label]) => (
           <li key={href}>
-            <Link href={href} className="text-sm text-muted transition-colors hover:text-fg">
+            <Link href={href} className="text-sm text-muted transition-colors hover:text-accent-2">
               {label}
             </Link>
           </li>

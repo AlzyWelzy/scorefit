@@ -49,8 +49,10 @@ export default async function ProgramPage({
   return (
     <div className="mx-auto max-w-6xl px-5 py-14">
       <Reveal>
-        <Link href="/programs" className="eyebrow hover:text-fg">← Programs</Link>
-        <h1 className="mt-3 font-display text-4xl font-bold tracking-tight sm:text-5xl">{p.name}</h1>
+        <Link href="/programs" className="eyebrow-accent hover:text-fg">← Programs</Link>
+        <h1 className="display-tight mt-3 font-display text-4xl font-bold sm:text-5xl">
+          <span className="gradient-text">{p.name}</span>
+        </h1>
         <p className="mt-4 max-w-2xl text-muted">
           {meta.tagline} A 5-day Upper / Lower / Pull / Push / Legs split run over a
           5-week Foundation block and a 7-week Ramping block, then looped.
@@ -58,7 +60,7 @@ export default async function ProgramPage({
       </Reveal>
 
       <Reveal delay={0.05}>
-        <div className="mt-8 grid grid-cols-2 gap-px overflow-hidden rounded-card border border-line bg-line sm:grid-cols-4">
+        <div className="card mt-8 grid grid-cols-2 gap-px overflow-hidden bg-line p-0 sm:grid-cols-4">
           <Cell><CountUp to={12} className="num text-3xl font-bold" /><span className="eyebrow mt-1.5">weeks</span></Cell>
           <Cell><CountUp to={5} suffix="×" className="num text-3xl font-bold text-data" /><span className="eyebrow mt-1.5">days / week</span></Cell>
           <Cell><CountUp to={2} className="num text-3xl font-bold" /><span className="eyebrow mt-1.5">blocks</span></Cell>
@@ -69,8 +71,8 @@ export default async function ProgramPage({
       <div className="mt-12 grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
         <Reveal>
           <div>
-            <h2 className="eyebrow mb-3">Weekly schedule</h2>
-            <div className="overflow-hidden rounded-card border border-line">
+            <h2 className="eyebrow-accent mb-3">Weekly schedule</h2>
+            <div className="card overflow-hidden p-0">
               {SCHEDULE.map(([day, focus, tag], i) => (
                 <div
                   key={day}
@@ -89,7 +91,7 @@ export default async function ProgramPage({
         </Reveal>
       </div>
 
-      <h2 className="eyebrow mb-4 mt-14">Select a week — color shows volume</h2>
+      <h2 className="eyebrow-accent mb-4 mt-14">Select a week — color shows volume</h2>
       <RevealGroup className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4" stagger={0.04}>
         {p.weeks.map((w) => {
           const deload = isDeload(w.number);
@@ -100,7 +102,7 @@ export default async function ProgramPage({
             <RevealItem key={w.number}>
               <Link
                 href={`/programs/${program}/week/${w.number}`}
-                className="group relative block overflow-hidden rounded-card border border-line p-4 transition-all hover:border-line-2"
+                className="card card-hover group relative block overflow-hidden p-4"
                 style={{ background: `linear-gradient(135deg, rgba(${tint},${0.05 + intensity * 0.16}), var(--color-surface) 70%)` }}
               >
                 <div className="flex items-center justify-between">
@@ -124,8 +126,8 @@ export default async function ProgramPage({
       </RevealGroup>
 
       <Reveal>
-        <div className="mt-12 flex items-center gap-3 rounded-card border border-line bg-surface p-5">
-          <BookOpen className="h-5 w-5 shrink-0 text-accent" />
+        <div className="glass mt-12 flex items-center gap-3 p-5">
+          <BookOpen className="h-5 w-5 shrink-0 rounded-full text-accent glow-accent" />
           <p className="text-sm text-muted">
             New here? Read the{" "}
             <Link href="/guidebook/understanding-the-program" className="text-data hover:underline">program guide</Link>{" "}

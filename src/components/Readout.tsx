@@ -16,7 +16,7 @@ export function Stat({
     accent === "accent" ? "text-accent" : accent === "data" ? "text-data" : "text-fg";
   const fs = size === "lg" ? "text-3xl" : size === "sm" ? "text-xl" : "text-2xl";
   return (
-    <div className="rounded-lg border border-line bg-surface px-4 py-3.5">
+    <div className="card px-4 py-3.5">
       <div className={`num font-semibold leading-none ${fs} ${color}`}>{value}</div>
       <div className="eyebrow mt-2">{label}</div>
     </div>

@@ -22,12 +22,10 @@ type TotpSetup = {
 
 const errorBox =
   "rounded-lg border border-hard/30 bg-hard/10 px-3 py-2 text-sm text-hard";
-const submitBtn =
-  "rounded-lg bg-accent px-4 py-2.5 font-semibold text-bg transition-colors hover:bg-accent-2 disabled:opacity-60";
-const ghostBtn =
-  "rounded-lg border border-line px-4 py-2.5 text-sm text-muted transition-colors hover:text-fg disabled:opacity-60";
+const submitBtn = "btn-accent disabled:opacity-60";
+const ghostBtn = "btn-surface text-sm disabled:opacity-60";
 const codeInput =
-  "num w-full rounded-lg border border-line bg-bg px-3 py-2.5 text-2xl tracking-[0.5em] text-center text-fg focus:border-accent focus:outline-none";
+  "num w-full rounded-lg border border-line bg-bg px-3 py-2.5 text-2xl tracking-[0.5em] text-center text-data transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40";
 
 const METHOD_LABEL: Record<Method, string> = {
   totp: "Authenticator app",
@@ -210,8 +208,8 @@ export function TwoFactorSection() {
   }
 
   return (
-    <section className="rounded-card border border-line bg-surface p-5">
-      <h2 className="eyebrow">Two-factor authentication</h2>
+    <section className="glass p-5">
+      <h2 className="eyebrow-accent">Two-factor authentication</h2>
 
       {/* ---- Loading ---- */}
       {status === null && loadError === null && (
@@ -339,7 +337,7 @@ function MethodChoice({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="rounded-lg border border-line bg-bg p-4 text-left transition-colors hover:border-accent disabled:opacity-60"
+      className="card card-hover bg-bg p-4 text-left disabled:opacity-60 disabled:hover:translate-y-0"
     >
       <span className="block font-display text-sm font-semibold text-fg">
         {title}
@@ -387,13 +385,13 @@ function SetupFlow({
             alt="QR code for two-factor authentication"
             width={176}
             height={176}
-            className="rounded-lg border border-line bg-white p-2"
+            className="rounded-xl border border-line bg-white p-3 shadow-[0_0_0_4px_rgba(255,255,255,0.04),0_8px_28px_-8px_rgba(255,106,61,0.35)]"
           />
           <div>
             <span className="mb-1 block font-mono text-[0.7rem] uppercase tracking-[0.16em] text-muted">
               Can&apos;t scan? Enter this key
             </span>
-            <code className="num block break-all rounded-lg border border-line bg-bg px-3 py-2 text-sm text-fg">
+            <code className="num block break-all rounded-lg border border-line bg-bg px-3 py-2 text-sm text-data shadow-inner-top">
               {totp.secret}
             </code>
           </div>
@@ -477,11 +475,11 @@ function BackupCodes({ codes, onDone }: { codes: string[]; onDone: () => void })
         them to sign in if you lose access to your device.
       </p>
 
-      <ul className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+      <ul className="grid grid-cols-2 gap-2 rounded-card border border-line bg-bg p-3 shadow-inner-top sm:grid-cols-5">
         {codes.map((c, i) => (
           <li
             key={`${c}-${i}`}
-            className="num rounded-lg border border-line bg-bg px-2 py-2 text-center text-sm text-fg"
+            className="num rounded-lg border border-line bg-surface-2 px-2 py-2 text-center text-sm font-medium tracking-wider text-data shadow-card"
           >
             {c}
           </li>
@@ -613,7 +611,7 @@ function EnabledState({
             type="button"
             onClick={onOpenDisable}
             disabled={busy}
-            className="rounded-lg border border-warn/30 bg-warn/10 px-4 py-2 text-sm font-semibold text-warn transition-colors hover:bg-warn/20 disabled:opacity-60"
+            className="rounded-lg border border-warn/40 bg-warn/10 px-4 py-2 text-sm font-semibold text-warn transition-all hover:bg-warn/20 hover:border-warn/60 disabled:opacity-60"
           >
             Disable 2FA
           </button>
@@ -639,7 +637,7 @@ function EnabledState({
               <button
                 type="submit"
                 disabled={busy || password.length === 0}
-                className="rounded-lg border border-warn/30 bg-warn/10 px-4 py-2.5 text-sm font-semibold text-warn transition-colors hover:bg-warn/20 disabled:opacity-60"
+                className="rounded-lg border border-warn/40 bg-warn/10 px-4 py-2.5 text-sm font-semibold text-warn transition-all hover:bg-warn/20 hover:border-warn/60 disabled:opacity-60"
               >
                 {busy ? "Disabling…" : "Disable 2FA"}
               </button>

@@ -9,7 +9,7 @@ export function YouTubeFacade({ url, title }: { url?: string | null; title: stri
   if (!id) return null;
 
   return (
-    <div className="relative aspect-video w-full overflow-hidden rounded-card border border-line bg-surface-2">
+    <div className="relative aspect-video w-full overflow-hidden rounded-card border border-line bg-surface-2 shadow-[var(--shadow-card)]">
       {active ? (
         <iframe
           // Move keyboard focus into the player when it replaces the button,
@@ -35,8 +35,8 @@ export function YouTubeFacade({ url, title }: { url?: string | null; title: stri
             decoding="async"
             className="media-treat absolute inset-0 h-full w-full object-cover"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-bg/70 via-bg/10 to-transparent" />
-          <span className="relative z-10 flex h-16 w-16 items-center justify-center rounded-full bg-accent text-bg shadow-[0_8px_30px_rgba(255,106,61,0.35)] transition-transform group-hover:scale-110">
+          <div className="absolute inset-0 bg-linear-to-t from-bg/70 via-bg/10 to-transparent" />
+          <span className="glow-accent-pulse relative z-10 flex h-16 w-16 items-center justify-center rounded-full bg-accent text-bg transition-transform duration-200 group-hover:scale-110">
             <Play className="ml-1 h-7 w-7" fill="currentColor" />
           </span>
           <span className="num absolute bottom-3 left-3 z-10 rounded bg-bg/80 px-2 py-1 text-xs text-muted backdrop-blur">

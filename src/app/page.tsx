@@ -25,14 +25,15 @@ export default function Home() {
       {/* ── HERO ── */}
       <section className="relative overflow-hidden border-b border-line">
         <div className="bg-grid absolute inset-0" />
-        <div className="glow-ember left-1/2 top-[-120px] h-[420px] w-[680px] -translate-x-1/2" />
+        <div className="aurora absolute inset-0" />
+        <div className="glow-ember left-1/2 top-[-120px] h-[480px] w-[760px] -translate-x-1/2" />
         <div className="relative mx-auto max-w-6xl px-5 pb-16 pt-20 md:pb-24 md:pt-28">
           <Reveal>
             <span className="eyebrow">Science-based hypertrophy · scorefit.net</span>
           </Reveal>
           <Reveal delay={0.05}>
-            <h1 className="mt-5 max-w-4xl font-display text-[2.9rem] font-extrabold leading-[0.98] tracking-tight sm:text-6xl md:text-7xl">
-              Train by the <span className="text-accent">numbers.</span>
+            <h1 className="display-tight mt-5 max-w-4xl font-display text-[2.9rem] font-extrabold leading-[0.98] tracking-tight sm:text-6xl md:text-7xl">
+              Train by the <span className="gradient-text">numbers.</span>
             </h1>
           </Reveal>
           <Reveal delay={0.1}>
@@ -44,10 +45,10 @@ export default function Home() {
           </Reveal>
           <Reveal delay={0.15}>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/programs/beginner" className="inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-3 font-semibold text-bg transition-colors hover:bg-accent-2">
+              <Link href="/programs/beginner" className="btn-accent inline-flex items-center gap-2">
                 Start Beginner <ArrowRight className="h-4 w-4" />
               </Link>
-              <Link href="/programs/intermediate" className="inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-5 py-3 font-semibold text-fg transition-colors hover:border-line-2">
+              <Link href="/programs/intermediate" className="btn-surface inline-flex items-center gap-2">
                 Intermediate / Advanced
               </Link>
             </div>
@@ -55,7 +56,7 @@ export default function Home() {
 
           {/* hero readout band */}
           <Reveal delay={0.2}>
-            <div className="mt-14 grid grid-cols-2 gap-px overflow-hidden rounded-card border border-line bg-line sm:grid-cols-4">
+            <div className="glass mt-14 grid grid-cols-2 gap-px overflow-hidden bg-line/60 sm:grid-cols-4">
               <HeroStat to={24} label="weeks total" />
               <HeroStat to={53} label="exercises" accent="data" />
               <HeroStat to={780} label="tracked sets" />
@@ -73,10 +74,10 @@ export default function Home() {
             const m = PROGRAM_META[id];
             return (
               <RevealItem key={id}>
-                <Link href={m.href} className="group relative flex h-full flex-col overflow-hidden rounded-card border border-line bg-surface p-7 transition-all hover:border-line-2">
-                  <div className="glow-ember -right-20 -top-20 h-48 w-48 opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+                <Link href={m.href} className="card card-hover group relative flex h-full flex-col overflow-hidden p-7">
+                  <div className="glow-ember -right-20 -top-20 h-56 w-56 opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
                   <div className="relative flex items-center justify-between">
-                    <span className="eyebrow">{m.level}</span>
+                    <span className="eyebrow-accent">{m.level}</span>
                     <ArrowUpRight className="h-5 w-5 text-faint transition-colors group-hover:text-accent" />
                   </div>
                   <h3 className="relative mt-4 font-display text-3xl font-bold">{m.name}</h3>
@@ -171,7 +172,7 @@ export default function Home() {
 function HeroStat({ to, label, accent = "fg" }: { to: number; label: string; accent?: "fg" | "accent" | "data" }) {
   const color = accent === "accent" ? "text-accent" : accent === "data" ? "text-data" : "text-fg";
   return (
-    <div className="bg-bg px-5 py-6">
+    <div className="bg-surface/60 px-5 py-6">
       <CountUp to={to} className={`num text-4xl font-bold sm:text-5xl ${color}`} />
       <div className="eyebrow mt-2">{label}</div>
     </div>

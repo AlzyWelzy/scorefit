@@ -86,7 +86,7 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
       <button
         type="submit"
         disabled={busy}
-        className="w-full rounded-lg bg-accent px-4 py-2.5 font-semibold text-bg transition-colors hover:bg-accent-2 disabled:opacity-60"
+        className="btn-accent w-full px-4 py-2.5 font-semibold disabled:opacity-60"
       >
         {busy ? "Signing in…" : "Sign in"}
       </button>

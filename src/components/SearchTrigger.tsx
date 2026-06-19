@@ -18,7 +18,7 @@ export function SearchTrigger() {
     <button
       type="button"
       onClick={() => window.dispatchEvent(new Event("open-command-palette"))}
-      className="group inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-faint transition-colors hover:border-line-2 hover:text-muted"
+      className="btn-surface group inline-flex items-center gap-2 px-3 py-2 text-sm text-faint hover:text-muted"
       aria-label="Search (open with Command or Control K)"
     >
       <Search className="h-3.5 w-3.5" />
