@@ -20,6 +20,7 @@ export const config = {
     "/leaderboards/:path*",
     "/verify-email/:path*",
     "/onboarding/:path*",
+    "/feed/:path*",
     "/admin/:path*",
   ],
 };

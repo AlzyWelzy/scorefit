@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { getLogsForWeek, upsertSetLog } from "@/db/logs";
 import { evaluateGameEvents } from "@/db/game";
 import { getUserById, setCurrentPosition } from "@/db/users";
+import { emitActivityEvent } from "@/db/social";
 import { PROGRAM_IDS } from "@/lib/data";
 import { resolveLocalDate } from "@/lib/time";
 import { sameOrigin } from "@/lib/rateLimit";
@@ -97,6 +98,27 @@ export async function POST(req: Request) {
       );
     } catch (err) {
       await captureException(err, { where: "game.evaluate", extra: { userId: session.user.id } });
+    }
+
+    // Emit social activity events from the outcome (best-effort, idempotent per day).
+    // Always recorded so a follower feed has history the moment SOCIAL is enabled; the
+    // events are only ever READ behind the flag. Opted-out users emit nothing (we're
+    // inside the !gamificationOptOut branch).
+    if (game) {
+      const day = resolveLocalDate(session.user.timezone, loggedAt);
+      try {
+        if (game.newPr) {
+          await emitActivityEvent(session.user.id, "e1rm_pr", day, {
+            exerciseSlug: game.newPr.exerciseSlug,
+            e1rm: Math.round(game.newPr.e1rm),
+          });
+        }
+        for (const a of game.newlyUnlocked) {
+          if (!a.hidden) await emitActivityEvent(session.user.id, "achievement", day, { id: a.id, title: a.title });
+        }
+      } catch (err) {
+        await captureException(err, { where: "social.emit", extra: { userId: session.user.id } });
+      }
     }
   }
 
