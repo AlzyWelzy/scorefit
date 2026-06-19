@@ -333,6 +333,102 @@ export const bodyMetrics = pgTable(
   (t) => [unique("uq_body_metric_day").on(t.userId, t.measuredOn)],
 );
 
+// Exercise substitutions chosen by the user (P4). One row per (user, program, daySlug,
+// originalSlug); the logger/progress/prevLoads follow the chosen sub so history tracks
+// the movement actually trained. Null subSlug means "reset to original" (we just delete).
+export const exerciseSwaps = pgTable(
+  "exercise_swaps",
+  {
+    id: uuid("id").primaryKey().$defaultFn(newId),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    program: text("program", { enum: ["beginner", "intermediate"] }).notNull(),
+    daySlug: text("day_slug").notNull(),
+    originalSlug: text("original_slug").notNull(),
+    subSlug: text("sub_slug").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique("uq_swap").on(t.userId, t.program, t.daySlug, t.originalSlug)],
+);
+
+// ─── Social (Phase 5) — all behind SOCIAL_ENABLED, default OFF ───────────────
+
+// Asymmetric follow graph. "Friends" = a mutual follow (derived, no separate table).
+export const follows = pgTable(
+  "follows",
+  {
+    followerId: uuid("follower_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    followeeId: uuid("followee_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("uq_follow").on(t.followerId, t.followeeId),
+    index("idx_follow_followee").on(t.followeeId),
+  ],
+);
+
+// Hard block — overrides everything (no follow, no feed visibility, no kudos).
+export const blocks = pgTable(
+  "blocks",
+  {
+    blockerId: uuid("blocker_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    blockedId: uuid("blocked_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique("uq_block").on(t.blockerId, t.blockedId)],
+);
+
+// System-generated activity events — NOT free text (keeps moderation tractable). One
+// row per noteworthy thing a user did; the feed reads followees' recent events.
+export const activityEvents = pgTable(
+  "activity_events",
+  {
+    id: uuid("id").primaryKey().$defaultFn(newId),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind", {
+      enum: ["session_completed", "e1rm_pr", "streak_milestone", "program_completed", "achievement"],
+    }).notNull(),
+    // Structured payload for rendering (e.g. { exercise, e1rm } or { weeks }). Never free text.
+    data: jsonb("data").$type<Record<string, unknown>>(),
+    occurredOn: date("occurred_on", { mode: "string" }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_activity_user").on(t.userId, t.createdAt),
+    // Idempotency: at most one event of a kind per user per day (re-saves don't duplicate).
+    unique("uq_activity").on(t.userId, t.kind, t.occurredOn),
+  ],
+);
+
+// Single kudos reaction per user per event (the only reaction type for now).
+export const reactions = pgTable(
+  "reactions",
+  {
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => activityEvents.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("uq_reaction").on(t.eventId, t.userId),
+    index("idx_reaction_event").on(t.eventId),
+  ],
+);
+
 export type UserGameProfile = typeof userGameProfile.$inferSelect;
 export type XpEvent = typeof xpEvents.$inferSelect;
 export type UserAchievement = typeof userAchievements.$inferSelect;
@@ -340,3 +436,7 @@ export type AchievementProgressRow = typeof achievementProgress.$inferSelect;
 export type PrEvent = typeof prEvents.$inferSelect;
 export type Report = typeof reports.$inferSelect;
 export type BodyMetric = typeof bodyMetrics.$inferSelect;
+export type ExerciseSwap = typeof exerciseSwaps.$inferSelect;
+export type Follow = typeof follows.$inferSelect;
+export type ActivityEvent = typeof activityEvents.$inferSelect;
+export type Reaction = typeof reactions.$inferSelect;

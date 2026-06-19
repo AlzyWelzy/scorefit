@@ -57,6 +57,13 @@
       "when": 1781846678228,
       "tag": "0007_wooden_sphinx",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1781849120402,
+      "tag": "0008_hot_shiver_man",
+      "breakpoints": true
     }
   ]
 }
