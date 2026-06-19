@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Check, CheckCheck, Loader2, CloudOff, RotateCw, Trophy, Sparkles, TrendingUp } from "lucide-react";
+import { Check, CheckCheck, Loader2, CloudOff, RotateCw, Trophy, Sparkles, TrendingUp, SlidersHorizontal } from "lucide-react";
 import type { ProgramId } from "@/lib/data";
 import { saveSet, flushOutbox, pendingCount, type SaveState, type SetPayload, type GameResult } from "@/lib/logOutbox";
+import { RestTimer } from "@/components/RestTimer";
+import { PlateCalculator } from "@/components/PlateCalculator";
 
 export type LogExercise = {
   slug: string;
@@ -27,6 +29,16 @@ export type PrevLoad = { weight: number | null; reps: number | null; week: numbe
 
 type Cell = { weight: string; reps: string; rpe: string; completed: boolean };
 const cellKey = (d: string, e: string, i: number) => `${d}|${e}|${i}`;
+
+// Pick the day to open on: match today's weekday name against day titles (e.g. a
+// "Monday — Push" title on Monday), else the first day. Runs client-side only.
+function pickTodaysDay(days: LogDay[]): string {
+  const first = days[0]?.slug ?? "";
+  if (typeof window === "undefined" || days.length === 0) return first;
+  const weekday = new Date().toLocaleDateString("en-US", { weekday: "long" }).toLowerCase();
+  const match = days.find((d) => d.title.toLowerCase().includes(weekday));
+  return match?.slug ?? first;
+}
 
 export function Logger({
   program,
@@ -65,6 +77,12 @@ export function Logger({
   const [pending, setPending] = useState(0);
   const [online, setOnline] = useState(true);
   const [authExpired, setAuthExpired] = useState(false);
+  // Day selector: show one training day at a time. Start at the first day (deterministic
+  // for SSR/hydration), then jump to today's weekday on mount (see effect below).
+  const [activeDay, setActiveDay] = useState<string>(days[0]?.slug ?? "");
+  // RPE is collapsed by default so the common case is two taps (weight, reps, ✓);
+  // a per-exercise toggle reveals the RPE inputs when the user wants to log effort.
+  const [rpeOpen, setRpeOpen] = useState<Record<string, boolean>>({});
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const latest = useRef<Record<string, SetPayload>>({});
 
@@ -147,7 +165,8 @@ export function Logger({
 
   const update = (daySlug: string, ex: string, i: number, patch: Partial<Cell>, immediate = false) => {
     const k = cellKey(daySlug, ex, i);
-    const next = { ...cell(k), ...patch };
+    const prev = cell(k);
+    const next = { ...prev, ...patch };
     setCells((c) => ({ ...c, [k]: next }));
     clearTimeout(timers.current[k]);
     if (immediate) {
@@ -155,7 +174,18 @@ export function Logger({
     } else {
       timers.current[k] = setTimeout(() => flush(daySlug, ex, i, next), 700);
     }
+    // Auto-start the rest timer the moment a set is newly marked complete.
+    if (patch.completed === true && !prev.completed && typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("scorefit-rest-start"));
+    }
   };
+
+  // Jump to today's training day on mount (post-hydration so SSR stays deterministic).
+  useEffect(() => {
+    const today = pickTodaysDay(days);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (today) setActiveDay(today);
+  }, [days]);
 
   // Online/offline + outbox flush + auth-expiry signalling.
   useEffect(() => {
@@ -269,8 +299,34 @@ export function Logger({
         ))}
       </div>
 
+      {/* day selector — one day at a time, defaulting to today's weekday */}
+      {days.length > 1 && (
+        <div className="mt-6 flex flex-wrap gap-1.5" role="tablist" aria-label="Training day">
+          {days.map((d) => (
+            <button
+              key={d.slug}
+              type="button"
+              role="tab"
+              aria-selected={d.slug === activeDay}
+              onClick={() => setActiveDay(d.slug)}
+              className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                d.slug === activeDay ? "border-accent bg-accent-dim text-accent-2" : "border-line text-muted hover:text-fg"
+              }`}
+            >
+              {d.title}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* in-gym tools: rest timer (auto-starts on completion) + plate calculator */}
+      <div className="mt-6 grid gap-4 sm:grid-cols-2">
+        <RestTimer />
+        <PlateCalculator />
+      </div>
+
       <div className="mt-8 space-y-10">
-        {days.map((d, di) => (
+        {days.filter((d) => d.slug === activeDay || days.length === 1).map((d, di) => (
           <section key={`${d.slug}-${di}`}>
             <h2 className="mb-3 border-b border-line pb-2 font-display text-lg font-semibold">{d.title}</h2>
             <div className="space-y-5">
@@ -278,10 +334,24 @@ export function Logger({
                 <div key={ex.slug} className="rounded-card border border-line bg-surface p-4">
                   <div className="mb-3 flex items-baseline justify-between gap-3">
                     <h3 className="font-display font-semibold text-fg">{ex.name}</h3>
-                    <span className="num shrink-0 text-xs text-muted">
-                      {ex.sets}×{ex.reps ?? "—"}
-                      {ex.lastRPE ? ` @ ${ex.lastRPE.replace("~", "")}` : ""}
-                    </span>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className="num text-xs text-muted">
+                        {ex.sets}×{ex.reps ?? "—"}
+                        {ex.lastRPE ? ` @ ${ex.lastRPE.replace("~", "")}` : ""}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setRpeOpen((s) => ({ ...s, [ex.slug]: !s[ex.slug] }))}
+                        aria-pressed={!!rpeOpen[ex.slug]}
+                        aria-label={rpeOpen[ex.slug] ? "Hide RPE inputs" : "Show RPE inputs"}
+                        title="Toggle RPE"
+                        className={`inline-flex h-7 w-7 items-center justify-center rounded-md border transition-colors ${
+                          rpeOpen[ex.slug] ? "border-accent text-accent" : "border-line text-faint hover:text-muted"
+                        }`}
+                      >
+                        <SlidersHorizontal className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </div>
                   <div className="space-y-2">
                     {Array.from({ length: ex.sets }, (_, idx) => {
@@ -314,18 +384,20 @@ export function Logger({
                             aria-label={`Set ${i} reps`}
                             className="num w-0 flex-1 rounded-lg border border-line bg-bg px-2.5 py-2 text-base text-fg focus:border-accent focus:outline-none"
                           />
-                          <input
-                            type="number"
-                            inputMode="decimal"
-                            step="0.5"
-                            min="0"
-                            max="10"
-                            placeholder="rpe"
-                            value={c.rpe}
-                            onChange={(e) => update(d.slug, ex.slug, i, { rpe: e.target.value })}
-                            aria-label={`Set ${i} RPE`}
-                            className="num w-14 shrink-0 rounded-lg border border-line bg-bg px-2 py-2 text-base text-fg focus:border-accent focus:outline-none"
-                          />
+                          {rpeOpen[ex.slug] && (
+                            <input
+                              type="number"
+                              inputMode="decimal"
+                              step="0.5"
+                              min="0"
+                              max="10"
+                              placeholder="rpe"
+                              value={c.rpe}
+                              onChange={(e) => update(d.slug, ex.slug, i, { rpe: e.target.value })}
+                              aria-label={`Set ${i} RPE`}
+                              className="num w-14 shrink-0 rounded-lg border border-line bg-bg px-2 py-2 text-base text-fg focus:border-accent focus:outline-none"
+                            />
+                          )}
                           <button
                             type="button"
                             onClick={() => update(d.slug, ex.slug, i, { completed: !c.completed }, true)}
