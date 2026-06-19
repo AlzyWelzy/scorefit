@@ -1,4 +1,5 @@
-import { pgTable, uuid, text, integer, real, boolean, timestamp, unique, index } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, integer, real, boolean, timestamp, date, jsonb, unique, index } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { newId } from "../lib/ids";
 
 // Every `id` is a ULID rendered into a native Postgres `uuid` column (16-byte,
@@ -33,6 +34,40 @@ export const users = pgTable("users", {
   // Address awaiting verification during an email change. The current (verified)
   // email is kept until the new address is confirmed via an emailed code.
   pendingEmail: text("pending_email"),
+  // Gamification foundation. timezone (IANA) buckets sessions/streaks into the
+  // user's LOCAL calendar; weekStartsOn anchors the training week (1=Mon);
+  // goalSessionsPerWeek is an optional flexible target that overrides the
+  // program-prescribed session count when set.
+  timezone: text("timezone").notNull().default("UTC"),
+  weekStartsOn: integer("week_starts_on").notNull().default(1),
+  goalSessionsPerWeek: integer("goal_sessions_per_week"),
+  // Hard "disable all gamification" switch (ethics/anti-compulsion). When true the
+  // write-time engine is skipped (no XP/PR/achievement/streak mechanics fire) and the
+  // gamified surfaces hide; opting out also forces the user off the leaderboards.
+  // Default false = gamification on, matching the product's motivational design.
+  gamificationOptOut: boolean("gamification_opt_out").notNull().default(false),
+  // Minimal PII for the (opt-in, gated) leaderboards: birth YEAR only (age gate +
+  // age cohort, never full DOB), a public vanity handle distinct from the auth name,
+  // an explicit opt-in (default off), and a consent timestamp. No board surfaces a
+  // user until leaderboardOptIn is true AND the feature flag is enabled.
+  birthYear: integer("birth_year"),
+  displayName: text("display_name"),
+  leaderboardOptIn: boolean("leaderboard_opt_in").notNull().default(false),
+  acceptedTermsAt: timestamp("accepted_terms_at", { withTimezone: true }),
+  // Moderation foundation (cheap upfront, expensive to retrofit — built before social
+  // ships). isAdmin gates the /admin review queue. suspendedSocialAt soft-suspends
+  // PUBLIC/social privileges only (leaderboards, and later feed/follows) — never the
+  // private training account, which a user can always keep using and exporting.
+  isAdmin: boolean("is_admin").notNull().default(false),
+  suspendedSocialAt: timestamp("suspended_social_at", { withTimezone: true }),
+  // "Where you are" — the program/week the logger and TodayCard default to, plus when
+  // the user started, so the app resumes where they left off instead of always week 1.
+  currentProgram: text("current_program", { enum: ["beginner", "intermediate"] }),
+  currentWeek: integer("current_week"),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  // Per-user feature-flag allowlist for staged rollout (e.g. ["leaderboards","social"]).
+  // Empty/absent = only the global env flags apply.
+  featureAllowlist: jsonb("feature_allowlist").$type<string[]>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -93,11 +128,315 @@ export const workoutLogs = pgTable(
   (t) => [
     unique("uq_log_coords").on(t.userId, t.program, t.week, t.daySlug, t.exerciseSlug, t.setIndex),
     index("idx_log_user_program_week").on(t.userId, t.program, t.week),
+    // Partial index for getPreviousLoads' DISTINCT ON (only completed rows are scanned),
+    // ordered to match (exercise, set, latest week, heaviest) so the dedup is index-served.
+    index("idx_log_prev_completed")
+      .on(t.userId, t.program, t.exerciseSlug, t.setIndex, t.week.desc())
+      .where(sql`${t.completed} = true`),
+  ],
+);
+
+// Derived dated-session projection: one row per training day a user worked, rolled
+// up from completed workout_logs on each write. THE date-anchored entity the whole
+// gamification layer (streaks, leaderboards, feeds, achievements) reads from instead
+// of scanning the mutable workout_logs.updatedAt. sessionDate is the user's LOCAL
+// date, FROZEN on first write (later edits never move it). qualifies marks the
+// honesty floor so a single stray tap can't bank a day. Keyed by the program-day
+// (matching how logs are coordinate-keyed); sessionDate is the calendar stamp.
+export const workoutSessions = pgTable(
+  "workout_sessions",
+  {
+    id: uuid("id").primaryKey().$defaultFn(newId),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    program: text("program", { enum: ["beginner", "intermediate"] }).notNull(),
+    week: integer("week").notNull(),
+    daySlug: text("day_slug").notNull(),
+    sessionDate: date("session_date", { mode: "string" }).notNull(), // user-local, frozen on first write
+    distinctExercises: integer("distinct_exercises").notNull().default(0),
+    completedSets: integer("completed_sets").notNull().default(0),
+    prescribedSets: integer("prescribed_sets").notNull().default(0),
+    tonnage: real("tonnage").notNull().default(0), // Σ completed weight×reps
+    bestE1rm: real("best_e1rm"), // best Epley e1RM in the session, null if none gradeable
+    qualifies: boolean("qualifies").notNull().default(false), // ≥3 sets OR ≥2 distinct exercises
+    committedAt: timestamp("committed_at", { withTimezone: true }), // set when the user taps "finish"
+    backfilled: boolean("backfilled").notNull().default(false), // synthesized from history, date is approximate
+    firstAt: timestamp("first_at", { withTimezone: true }),
+    lastAt: timestamp("last_at", { withTimezone: true }),
+  },
+  (t) => [
+    unique("uq_session_coords").on(t.userId, t.program, t.week, t.daySlug),
+    index("idx_session_user_date").on(t.userId, t.sessionDate),
   ],
 );
 
 export type User = typeof users.$inferSelect;
+export type WorkoutSession = typeof workoutSessions.$inferSelect;
+export type NewWorkoutSession = typeof workoutSessions.$inferInsert;
 export type WorkoutLog = typeof workoutLogs.$inferSelect;
 export type NewWorkoutLog = typeof workoutLogs.$inferInsert;
 export type VerificationToken = typeof verificationTokens.$inferSelect;
 export type BackupCode = typeof backupCodes.$inferSelect;
+
+// ─── Gamification: XP, levels & achievements (Phase 2) ───────────────────────
+// All driven by one write-time engine (evaluateGameEvents, src/db/game.ts) hooked
+// into the set-log write path. Caches below are fully recomputable from xp_events
+// + the logs, so drift is recoverable.
+
+// One denormalized per-user game summary. O(1) reads for /profile and headers.
+export const userGameProfile = pgTable("user_game_profile", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  totalXp: integer("total_xp").notNull().default(0), // = SUM(xp_events.amount)
+  level: integer("level").notNull().default(1),
+  title: text("title").notNull().default("Novice"),
+  // exerciseSlug → best Epley e1RM + the date it was set, for O(1) PR detection
+  // and the per-exercise PR cooldown. In the user's own weight unit (unit-agnostic).
+  bestE1rm: jsonb("best_e1rm")
+    .$type<Record<string, { e1rm: number; at: string }>>()
+    .notNull()
+    .default({}),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Idempotent, upsertable XP ledger. amount is the CURRENT correct value for a
+// (source, refKey) — re-evaluating a set upserts it (0 when un-completed), so
+// totalXp = SUM(amount) stays correct with no reversal rows. The unique key is the
+// idempotency guard against the offline outbox replaying the same set.
+export const xpEvents = pgTable(
+  "xp_events",
+  {
+    id: uuid("id").primaryKey().$defaultFn(newId),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    source: text("source", {
+      enum: ["set_completion", "log_quality", "pr", "achievement", "cadence", "perfect_week"],
+    }).notNull(),
+    refKey: text("ref_key").notNull(), // e.g. a set coordinate, or 'pr:bench:2026-06-17'
+    amount: integer("amount").notNull(),
+    eventDate: date("event_date", { mode: "string" }).notNull(), // = the session's local date
+    meta: jsonb("meta"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("uq_xp_event").on(t.userId, t.source, t.refKey),
+    index("idx_xp_user_date").on(t.userId, t.eventDate),
+  ],
+);
+
+// Earned badges. UNIQUE makes the on-write insert idempotent; tier upgrades in place.
+export const userAchievements = pgTable(
+  "user_achievements",
+  {
+    id: uuid("id").primaryKey().$defaultFn(newId),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    achievementId: text("achievement_id").notNull(), // stable rule slug
+    tier: text("tier"), // 'bronze' | 'silver' | 'gold' | null
+    evidence: jsonb("evidence"), // snapshot of what triggered it (auditable)
+    unlockedAt: timestamp("unlocked_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique("uq_user_achievement").on(t.userId, t.achievementId)],
+);
+
+// Running counters toward locked/tiered achievements so the engine and the trophy
+// room never rescan all logs (progress bars: "11/53", "400 to next landmark").
+export const achievementProgress = pgTable(
+  "achievement_progress",
+  {
+    id: uuid("id").primaryKey().$defaultFn(newId),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    key: text("key").notNull(), // e.g. 'explorer:distinct', 'volume:lifetime'
+    progressValue: real("progress_value").notNull().default(0),
+    progressMax: real("progress_max"), // next-tier / completion threshold
+    meta: jsonb("meta"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique("uq_ach_progress").on(t.userId, t.key)],
+);
+
+// Append-only personal-record ledger derived from completed sets. Feeds PR XP, the
+// e1RM-PR achievement, and (later) a self-relative leaderboard + feed events.
+export const prEvents = pgTable(
+  "pr_events",
+  {
+    id: uuid("id").primaryKey().$defaultFn(newId),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    exerciseSlug: text("exercise_slug").notNull(),
+    kind: text("kind", { enum: ["e1rm", "volume"] }).notNull(),
+    value: real("value").notNull(), // e1RM (user's unit) or volume
+    gainPct: real("gain_pct"), // % over prior best
+    occurredOn: date("occurred_on", { mode: "string" }).notNull(),
+    flagged: boolean("flagged").notNull().default(false), // implausible jump: recorded, not rewarded
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // One PR row per exercise per local day, upserted in lockstep with PR XP so the
+    // ledger can't drift from multiple PR sets on the same exercise+date.
+    unique("uq_pr_event").on(t.userId, t.exerciseSlug, t.occurredOn, t.kind),
+    index("idx_pr_user_ex").on(t.userId, t.exerciseSlug),
+  ],
+);
+
+// Moderation queue. Content-type-agnostic (targetType + targetId) so the social
+// surfaces shipping later — display names, feed captions, activity events — plug in
+// without a schema change. reporterId cascades on the reporter's deletion; reportedUserId
+// is captured for context and SET NULL if that account is later removed (a report
+// survives the reported account's deletion for audit). status drives the admin queue.
+export const reports = pgTable(
+  "reports",
+  {
+    id: uuid("id").primaryKey().$defaultFn(newId),
+    reporterId: uuid("reporter_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    reportedUserId: uuid("reported_user_id").references(() => users.id, { onDelete: "set null" }),
+    targetType: text("target_type", { enum: ["user", "display_name", "activity_event", "caption"] }).notNull(),
+    targetId: text("target_id").notNull(), // id/slug of the reported thing (e.g. the reported user's id)
+    reason: text("reason", { enum: ["spam", "harassment", "inappropriate", "impersonation", "other"] }).notNull(),
+    detail: text("detail"), // optional free-text context (≤500 chars, enforced at the API)
+    status: text("status", { enum: ["open", "actioned", "dismissed"] }).notNull().default("open"),
+    resolvedByAdminId: uuid("resolved_by_admin_id").references(() => users.id, { onDelete: "set null" }),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_reports_status").on(t.status),
+    index("idx_reports_reporter").on(t.reporterId),
+  ],
+);
+
+// Bodyweight / body-measurement tracking (P4). One row per user per local day; the
+// weight is stored in the user's current unit (converted on a unit switch like logs).
+// Deliberately minimal — bodyweight only — and NEVER fed into any leaderboard, XP, or
+// public surface (see ED_SAFETY_REVIEW.md): it's a private trend on /progress only.
+export const bodyMetrics = pgTable(
+  "body_metrics",
+  {
+    id: uuid("id").primaryKey().$defaultFn(newId),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    measuredOn: date("measured_on", { mode: "string" }).notNull(), // user-local day
+    weight: real("weight").notNull(), // in the user's unit at time of entry
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique("uq_body_metric_day").on(t.userId, t.measuredOn)],
+);
+
+// Exercise substitutions chosen by the user (P4). One row per (user, program, daySlug,
+// originalSlug); the logger/progress/prevLoads follow the chosen sub so history tracks
+// the movement actually trained. Null subSlug means "reset to original" (we just delete).
+export const exerciseSwaps = pgTable(
+  "exercise_swaps",
+  {
+    id: uuid("id").primaryKey().$defaultFn(newId),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    program: text("program", { enum: ["beginner", "intermediate"] }).notNull(),
+    daySlug: text("day_slug").notNull(),
+    originalSlug: text("original_slug").notNull(),
+    subSlug: text("sub_slug").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique("uq_swap").on(t.userId, t.program, t.daySlug, t.originalSlug)],
+);
+
+// ─── Social (Phase 5) — all behind SOCIAL_ENABLED, default OFF ───────────────
+
+// Asymmetric follow graph. "Friends" = a mutual follow (derived, no separate table).
+export const follows = pgTable(
+  "follows",
+  {
+    followerId: uuid("follower_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    followeeId: uuid("followee_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("uq_follow").on(t.followerId, t.followeeId),
+    index("idx_follow_followee").on(t.followeeId),
+  ],
+);
+
+// Hard block — overrides everything (no follow, no feed visibility, no kudos).
+export const blocks = pgTable(
+  "blocks",
+  {
+    blockerId: uuid("blocker_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    blockedId: uuid("blocked_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique("uq_block").on(t.blockerId, t.blockedId)],
+);
+
+// System-generated activity events — NOT free text (keeps moderation tractable). One
+// row per noteworthy thing a user did; the feed reads followees' recent events.
+export const activityEvents = pgTable(
+  "activity_events",
+  {
+    id: uuid("id").primaryKey().$defaultFn(newId),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind", {
+      enum: ["session_completed", "e1rm_pr", "streak_milestone", "program_completed", "achievement"],
+    }).notNull(),
+    // Structured payload for rendering (e.g. { exercise, e1rm } or { weeks }). Never free text.
+    data: jsonb("data").$type<Record<string, unknown>>(),
+    occurredOn: date("occurred_on", { mode: "string" }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_activity_user").on(t.userId, t.createdAt),
+    // Idempotency: at most one event of a kind per user per day (re-saves don't duplicate).
+    unique("uq_activity").on(t.userId, t.kind, t.occurredOn),
+  ],
+);
+
+// Single kudos reaction per user per event (the only reaction type for now).
+export const reactions = pgTable(
+  "reactions",
+  {
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => activityEvents.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("uq_reaction").on(t.eventId, t.userId),
+    index("idx_reaction_event").on(t.eventId),
+  ],
+);
+
+export type UserGameProfile = typeof userGameProfile.$inferSelect;
+export type XpEvent = typeof xpEvents.$inferSelect;
+export type UserAchievement = typeof userAchievements.$inferSelect;
+export type AchievementProgressRow = typeof achievementProgress.$inferSelect;
+export type PrEvent = typeof prEvents.$inferSelect;
+export type Report = typeof reports.$inferSelect;
+export type BodyMetric = typeof bodyMetrics.$inferSelect;
+export type ExerciseSwap = typeof exerciseSwaps.$inferSelect;
+export type Follow = typeof follows.$inferSelect;
+export type ActivityEvent = typeof activityEvents.$inferSelect;
+export type Reaction = typeof reactions.$inferSelect;

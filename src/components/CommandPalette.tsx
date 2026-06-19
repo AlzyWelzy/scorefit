@@ -35,6 +35,7 @@ export function CommandPalette({ index }: { index: SearchEntry[] }) {
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
 
   const results = useMemo(() => {
@@ -110,6 +111,26 @@ export function CommandPalette({ index }: { index: SearchEntry[] }) {
     }
   }, [open]);
 
+  // While open, mark the rest of the page inert so SR/keyboard users can't reach the
+  // background behind this modal dialog (a true one-way focus trap, not just Tab-cycling).
+  useEffect(() => {
+    if (!open) return;
+    const root = rootRef.current;
+    if (!root) return;
+    const marked: HTMLElement[] = [];
+    for (const child of Array.from(document.body.children)) {
+      if (child === root || child.contains(root)) continue;
+      const el = child as HTMLElement;
+      if (!el.hasAttribute("inert")) {
+        el.setAttribute("inert", "");
+        marked.push(el);
+      }
+    }
+    return () => {
+      for (const el of marked) el.removeAttribute("inert");
+    };
+  }, [open]);
+
   // keep active item in view
   useEffect(() => {
     const el = listRef.current?.querySelector<HTMLElement>(`[data-idx="${active}"]`);
@@ -120,6 +141,7 @@ export function CommandPalette({ index }: { index: SearchEntry[] }) {
 
   return (
     <div
+      ref={rootRef}
       className="fixed inset-0 z-100 flex items-start justify-center px-4 pt-[12vh]"
       role="dialog"
       aria-modal="true"

@@ -451,6 +451,38 @@ body {
 }
 
 /* =========================================================================
+   Global light theme — opt-in via the header toggle (data-theme="light" on
+   <html>). Remaps the whole token set (same palette as the editorial theme) so
+   every surface, not just guidebook prose, is daytime/outdoor-gym readable.
+   ========================================================================= */
+html[data-theme="light"] {
+  --color-bg: #faf9f7;
+  --color-surface: #ffffff;
+  --color-surface-2: #f4f2ee;
+  --color-surface-3: #ece9e3;
+
+  --color-line: #e6e3dd;
+  --color-line-2: #d6d2ca;
+
+  --color-fg: #16191c;
+  --color-muted: #565c63;
+  --color-faint: #767c84; /* darker than editorial's faint to hold AA on white */
+
+  --color-accent: #d24a22;
+  --color-accent-2: #e8552b;
+  --color-accent-press: #b83d18;
+  --color-accent-dim: #f7ece7;
+
+  --color-data: #0e8c7e;
+  --color-data-dim: #e2f1ee;
+  --color-prose: #2e333a;
+
+  --color-ok: #15803d;
+  --color-warn: #b45309;
+  --color-hard: #b91c1c;
+}
+
+/* =========================================================================
    Print — ink-friendly workout sheet. Flip tokens to grayscale, drop chrome.
    ========================================================================= */
 @media print {

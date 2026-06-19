@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { guidebook, getGuideSection, getGuideSectionWithIndex } from "@/lib/data";
 import { Markdown } from "@/components/Markdown";
 import { Reveal } from "@/components/motion/Reveal";
+import { techArticle, breadcrumbs, ldJson } from "@/lib/structuredData";
 
 export function generateStaticParams() {
   return guidebook.sections.map((s) => ({ section: s.slug }));
@@ -33,8 +34,21 @@ export default async function GuideSectionPage({
   const prev = guidebook.sections[idx - 1];
   const next = guidebook.sections[idx + 1];
 
+  const ld = [
+    breadcrumbs([
+      { name: "Guidebook", path: "/guidebook" },
+      { name: s.title, path: `/guidebook/${s.slug}` },
+    ]),
+    techArticle({
+      headline: s.title,
+      description: `${s.title} — from the ScoreFit training guidebook.`,
+      path: `/guidebook/${s.slug}`,
+    }),
+  ];
+
   return (
     <div className="theme-editorial min-h-screen">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(ld) }} />
       <div className="mx-auto max-w-3xl px-5 py-14">
       <Reveal>
         <Link href="/guidebook" className="eyebrow hover:text-fg">← Guidebook</Link>

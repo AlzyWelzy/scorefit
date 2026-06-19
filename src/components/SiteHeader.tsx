@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Logo } from "./Logo";
 import { NavLink } from "./NavLink";
 import { SearchTrigger } from "./SearchTrigger";
+import { ThemeToggle } from "./ThemeToggle";
 import { AuthNav } from "./auth/AuthNav";
 
 const NAV = [
@@ -32,6 +33,7 @@ export function SiteHeader() {
         </nav>
         <div className="flex items-center gap-2">
           <SearchTrigger />
+          <ThemeToggle />
           <AuthNav />
           <Link
             href="/programs"

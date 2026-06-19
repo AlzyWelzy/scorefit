@@ -100,6 +100,10 @@ git push -u origin main
 - Go to vercel.com → **Add New… → Project** → import the repo.
 - Framework preset auto-detects **Next.js**. Build command `next build`, output handled automatically. Click **Deploy**.
 
+> **Database migrations:** apply with `drizzle-kit migrate` (journal-tracked, ordered) — **not** `db:push` (which diffs live schema and risks drift). The `.github/workflows/migrate.yml` workflow runs `npm run db:migrate` on every merge to `main` when the `DATABASE_URL` repo secret is set; run it before/with the Vercel deploy. Locally: `npm run db:migrate`.
+>
+> **Required production env:** `DATABASE_URL`, `AUTH_SECRET`, and `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` (rate limiting is **mandatory in prod** — the server refuses to boot without Upstash). Recommended: `SMTP_*` (transactional email), `CRON_SECRET` (scheduled jobs), `SENTRY_DSN` (error reporting; `npm i @sentry/nextjs` to activate forwarding).
+
 ### 3. Add the domain
 - Project → **Settings → Domains** → add `scorefit.net` and `www.scorefit.net`.
 

@@ -6,7 +6,7 @@ const BASE = "https://scorefit.net";
 const LAST_MODIFIED = new Date("2026-01-01");
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const staticPages = ["", "/programs", "/exercises", "/guidebook"].map((p) => ({
+  const staticPages = ["", "/programs", "/exercises", "/guidebook", "/tools"].map((p) => ({
     url: `${BASE}${p}`,
     lastModified: LAST_MODIFIED,
     changeFrequency: "monthly" as const,

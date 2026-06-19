@@ -139,6 +139,22 @@ export function RestTimer() {
     setLeft(s);
     persist({ total: s, endAt: null, pausedLeft: null });
   };
+
+  // Auto-start: the logger fires `scorefit-rest-start` when a set is marked complete,
+  // so the timer kicks off at the current preset without the user touching it.
+  const startFresh = useCallback(() => {
+    const newEnd = Date.now() + total * 1000;
+    beeped.current = false;
+    setEndAt(newEnd);
+    setPausedLeft(null);
+    setLeft(total);
+    persist({ total, endAt: newEnd, pausedLeft: null });
+  }, [total, persist]);
+  useEffect(() => {
+    const onStart = () => startFresh();
+    window.addEventListener("scorefit-rest-start", onStart);
+    return () => window.removeEventListener("scorefit-rest-start", onStart);
+  }, [startFresh]);
   const reset = () => {
     setEndAt(null);
     setPausedLeft(null);

@@ -1,7 +1,10 @@
 import "server-only";
-import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { users, type User } from "@/db/schema";
+import { users, workoutLogs, type User } from "@/db/schema";
+
+/** kg→lb and lb→kg factors for converting stored loads on a unit change. */
+export const UNIT_FACTOR = { kgToLb: 2.20462262, lbToKg: 0.45359237 } as const;
 
 export async function getUserById(id: string): Promise<User | null> {
   const rows = await db.select().from(users).where(eq(users.id, id)).limit(1);
@@ -95,6 +98,74 @@ export async function setPasswordHash(id: string, passwordHash: string): Promise
 
 export async function setUnit(id: string, unit: "kg" | "lb"): Promise<void> {
   await db.update(users).set({ unit }).where(eq(users.id, id));
+}
+
+/**
+ * Switch the user's unit AND convert their stored loads so the same physical weight
+ * is preserved (e.g. 100 kg becomes ~220 lb, not a mislabeled 100 lb). Rounds to
+ * 0.5 to stay tidy. No-op if the unit didn't actually change.
+ */
+export async function changeUnit(id: string, from: "kg" | "lb", to: "kg" | "lb"): Promise<void> {
+  if (from === to) return;
+  const factor = to === "lb" ? UNIT_FACTOR.kgToLb : UNIT_FACTOR.lbToKg;
+  await db.transaction(async (tx) => {
+    await tx
+      .update(workoutLogs)
+      .set({ weight: sql`round((${workoutLogs.weight} * ${factor}) * 2) / 2` })
+      .where(and(eq(workoutLogs.userId, id), isNotNull(workoutLogs.weight)));
+    await tx.update(users).set({ unit: to }).where(eq(users.id, id));
+  });
+}
+
+export async function setTimezone(id: string, timezone: string): Promise<void> {
+  await db.update(users).set({ timezone }).where(eq(users.id, id));
+}
+
+/**
+ * Remember where the user is in their training — the program/week the logger and
+ * TodayCard resume to. Stamps startedAt on the first time a program is set, so the
+ * app can later suggest a week from elapsed time. Idempotent on repeat calls.
+ */
+export async function setCurrentPosition(
+  id: string,
+  program: "beginner" | "intermediate",
+  week: number,
+): Promise<void> {
+  await db
+    .update(users)
+    .set({
+      currentProgram: program,
+      currentWeek: week,
+      startedAt: sql`coalesce(${users.startedAt}, now())`,
+    })
+    .where(eq(users.id, id));
+}
+
+/**
+ * Flip the hard "disable all gamification" switch. Turning it ON also forces the user
+ * off the leaderboards — you can't compete on a public board while the mechanics that
+ * feed it are disabled for you. Turning it back OFF re-enables the engine but does NOT
+ * silently re-join boards (that stays an explicit opt-in).
+ */
+export async function setGamificationOptOut(id: string, optOut: boolean): Promise<void> {
+  const set: Partial<typeof users.$inferInsert> = { gamificationOptOut: optOut };
+  if (optOut) set.leaderboardOptIn = false;
+  await db.update(users).set(set).where(eq(users.id, id));
+}
+
+/** Update the (gated) leaderboard consent profile. Opting in stamps acceptedTermsAt. */
+export async function updateLeaderboardProfile(
+  id: string,
+  patch: { optIn?: boolean; displayName?: string | null; birthYear?: number },
+): Promise<void> {
+  const set: Partial<typeof users.$inferInsert> = {};
+  if (patch.displayName !== undefined) set.displayName = patch.displayName;
+  if (patch.birthYear !== undefined) set.birthYear = patch.birthYear;
+  if (patch.optIn !== undefined) {
+    set.leaderboardOptIn = patch.optIn;
+    if (patch.optIn) set.acceptedTermsAt = new Date();
+  }
+  if (Object.keys(set).length) await db.update(users).set(set).where(eq(users.id, id));
 }
 
 export async function markEmailVerified(id: string): Promise<void> {

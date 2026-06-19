@@ -2,10 +2,12 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { auth } from "@/auth";
-import { getUserById, setName, setPendingEmail, setPasswordHash, setUnit, emailExists } from "@/db/users";
+import { getUserById, setName, setPendingEmail, setPasswordHash, changeUnit, setTimezone, updateLeaderboardProfile, setGamificationOptOut, setCurrentPosition, emailExists } from "@/db/users";
 import { issueToken } from "@/db/tokens";
 import { sendVerificationCode } from "@/lib/mailer";
 import { sameOrigin, rateLimit, clientIp } from "@/lib/rateLimit";
+import { isValidTimeZone } from "@/lib/time";
+import { MIN_AGE, meetsMinAge } from "@/lib/flags";
 
 export const runtime = "nodejs";
 
@@ -13,6 +15,19 @@ const patchSchema = z.object({
   name: z.string().trim().min(1).max(80).nullable().optional(),
   email: z.email().optional(),
   unit: z.enum(["kg", "lb"]).optional(),
+  // IANA timezone, captured client-side and refined server-side (must be a real
+  // zone). Non-sensitive; used to bucket sessions/streaks into the local day.
+  timezone: z.string().min(1).max(64).optional(),
+  // (Gated) leaderboard consent profile.
+  leaderboardOptIn: z.boolean().optional(),
+  displayName: z.string().trim().min(2).max(24).nullable().optional(),
+  birthYear: z.number().int().min(1900).max(2100).optional(),
+  // Hard anti-compulsion switch — turns off all gamification mechanics for the user.
+  gamificationOptOut: z.boolean().optional(),
+  // "Where you are" — set at onboarding (and updated as the user logs). Both must be
+  // present together to set a position.
+  currentProgram: z.enum(["beginner", "intermediate"]).optional(),
+  currentWeek: z.number().int().min(1).max(52).optional(),
   // Required only when changing email or password.
   currentPassword: z.string().optional(),
   newPassword: z.string().min(8).optional(),
@@ -31,9 +46,33 @@ export async function PATCH(req: Request) {
       { status: 400 },
     );
   }
-  const { name, email, unit, currentPassword, newPassword } = parsed.data;
+  const { name, email, unit, timezone, leaderboardOptIn, displayName, birthYear, gamificationOptOut, currentProgram, currentWeek, currentPassword, newPassword } = parsed.data;
+  if (timezone !== undefined && !isValidTimeZone(timezone)) {
+    return NextResponse.json({ error: "Invalid timezone." }, { status: 400 });
+  }
   const user = await getUserById(session.user.id);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // Can't join a public board while gamification is (being) turned off — the board
+  // is fed by the very mechanics the switch disables. Reject the contradiction.
+  const willBeOptedOut = gamificationOptOut ?? user.gamificationOptOut;
+  if (leaderboardOptIn === true && willBeOptedOut) {
+    return NextResponse.json(
+      { error: "Re-enable gamification before joining the leaderboards." },
+      { status: 400 },
+    );
+  }
+
+  // Age gate: joining the leaderboards (a public surface) requires an age >= MIN_AGE.
+  if (leaderboardOptIn === true) {
+    const by = birthYear ?? user.birthYear ?? undefined;
+    if (!by) {
+      return NextResponse.json({ error: "Birth year is required to join leaderboards." }, { status: 400 });
+    }
+    if (!meetsMinAge(by)) {
+      return NextResponse.json({ error: `You must be at least ${MIN_AGE} to join leaderboards.` }, { status: 403 });
+    }
+  }
 
   // Sensitive changes (email / password) require the current password.
   const sensitive = email !== undefined || newPassword !== undefined;
@@ -46,7 +85,21 @@ export async function PATCH(req: Request) {
   }
 
   if (name !== undefined) await setName(user.id, name);
-  if (unit !== undefined) await setUnit(user.id, unit);
+  // Switching units converts stored loads so the same physical weight is preserved.
+  if (unit !== undefined && unit !== user.unit) await changeUnit(user.id, user.unit as "kg" | "lb", unit);
+  if (timezone !== undefined && timezone !== user.timezone) await setTimezone(user.id, timezone);
+  // "Where you are" — set when both program and week are provided (onboarding).
+  if (currentProgram !== undefined && currentWeek !== undefined) {
+    await setCurrentPosition(user.id, currentProgram, currentWeek);
+  }
+  // Apply the gamification switch first so opting out can force-clear the board opt-in
+  // before any leaderboard-profile update in the same request is considered.
+  if (gamificationOptOut !== undefined && gamificationOptOut !== user.gamificationOptOut) {
+    await setGamificationOptOut(user.id, gamificationOptOut);
+  }
+  if (leaderboardOptIn !== undefined || displayName !== undefined || birthYear !== undefined) {
+    await updateLeaderboardProfile(user.id, { optIn: leaderboardOptIn, displayName, birthYear });
+  }
 
   if (newPassword !== undefined) {
     await setPasswordHash(user.id, await bcrypt.hash(newPassword, 12));

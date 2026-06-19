@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Account",
   alternates: { canonical: "/account" },
+  robots: { index: false, follow: false },
 };
 
 export default async function AccountPage() {
@@ -35,6 +36,7 @@ export default async function AccountPage() {
           email={user.email}
           unit={user.unit as "kg" | "lb"}
           emailVerified={!!user.emailVerified}
+          gamificationOptOut={user.gamificationOptOut}
         />
       </div>
     </div>

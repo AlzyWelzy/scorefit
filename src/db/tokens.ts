@@ -1,5 +1,5 @@
 import "server-only";
-import { createHash, randomInt } from "crypto";
+import { createHash, randomInt, timingSafeEqual } from "crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { verificationTokens } from "@/db/schema";
@@ -10,6 +10,14 @@ const TTL_MS = 10 * 60 * 1000; // 10 minutes
 const MAX_ATTEMPTS = 5;
 
 const hash = (code: string) => createHash("sha256").update(code).digest("hex");
+
+/** Constant-time compare of two SHA-256 hex digests (always equal length here). */
+function hashesEqual(a: string, b: string): boolean {
+  const ba = Buffer.from(a, "hex");
+  const bb = Buffer.from(b, "hex");
+  if (ba.length !== bb.length) return false;
+  return timingSafeEqual(ba, bb);
+}
 
 /** Cryptographically-random 6-digit numeric OTP. */
 function generateCode(): string {
@@ -65,7 +73,7 @@ export async function verifyToken(
   if (token.attempts >= MAX_ATTEMPTS) {
     return { ok: false, reason: "too_many_attempts" };
   }
-  if (token.codeHash !== hash(code)) {
+  if (!hashesEqual(token.codeHash, hash(code))) {
     // Increment atomically in SQL (attempts = attempts + 1) rather than writing
     // back the value we read — otherwise N concurrent wrong guesses all read the
     // same count and advance the counter by 1, defeating the MAX_ATTEMPTS lock.

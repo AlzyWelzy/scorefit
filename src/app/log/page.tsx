@@ -1,14 +1,19 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { getProgramOrThrow, getWeek, isProgramId, parseSets, uniqueDaySlug, PROGRAM_META, type ProgramId } from "@/lib/data";
+import { buildWeekCoordinates, getProgramOrThrow, isProgramId, PROGRAM_META, type ProgramId } from "@/lib/data";
 import { getLogsForWeek, getPreviousLoads } from "@/db/logs";
+import { getUserById } from "@/db/users";
 import { Logger, type LogDay, type InitialLog, type PrevLoad } from "@/components/logger/Logger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic"; // reads session + db; never prerender
 
-export const metadata: Metadata = { title: "Workout log", alternates: { canonical: "/log" } };
+export const metadata: Metadata = {
+  title: "Workout log",
+  alternates: { canonical: "/log" },
+  robots: { index: false, follow: false },
+};
 
 export default async function LogPage({
   searchParams,
@@ -19,25 +24,21 @@ export default async function LogPage({
   if (!session?.user?.id) redirect("/login?callbackUrl=/log");
 
   const sp = await searchParams;
-  const program: ProgramId = sp.program && isProgramId(sp.program) ? sp.program : "beginner";
+  // Resume where the user is (last-logged program/week) when no explicit params; an
+  // explicit ?program=/?week= always wins (e.g. the "Log this day" deep-links).
+  const me = await getUserById(session.user.id);
+  const program: ProgramId = sp.program && isProgramId(sp.program)
+    ? sp.program
+    : (me?.currentProgram ?? "beginner");
   const prog = getProgramOrThrow(program);
   const maxWeek = prog.weeks.length;
-  const weekReq = parseInt(sp.week ?? "1", 10);
+  const defaultWeek = sp.program ? 1 : (me?.currentWeek ?? 1); // only fall back to saved week when program wasn't explicit
+  const weekReq = parseInt(sp.week ?? String(defaultWeek), 10);
   const week = Number.isFinite(weekReq) ? Math.min(Math.max(weekReq, 1), maxWeek) : 1;
 
-  const w = getWeek(program, week)!;
-  const rawSlugs = w.days.map((d) => d.slug);
-  const days: LogDay[] = w.days.map((d, i) => ({
-    slug: uniqueDaySlug(d.slug, i, rawSlugs),
-    title: d.title,
-    exercises: d.exercises.map((ex) => ({
-      slug: ex.slug,
-      name: ex.name,
-      sets: parseSets(ex.workingSets),
-      reps: ex.reps ?? null,
-      lastRPE: ex.lastRPE ?? null,
-    })),
-  }));
+  // Shares the coordinate space (unique slugs + set counts) with /progress and the
+  // session roll-up via buildWeekCoordinates.
+  const days: LogDay[] = buildWeekCoordinates(program, week).days;
 
   const [rows, prevLoads] = await Promise.all([
     getLogsForWeek(session.user.id, program, week),

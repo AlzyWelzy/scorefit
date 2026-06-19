@@ -10,8 +10,8 @@ export const authConfig = {
   session: { strategy: "jwt" },
   providers: [],
   callbacks: {
-    // Used by middleware to gate routes. Middleware is matched only to
-    // protected paths (see middleware.ts), so requiring a session here is enough.
+    // Used by the proxy (Next 16's middleware) to gate routes. It is matched only
+    // to protected paths (see proxy.ts), so requiring a session here is enough.
     authorized({ auth }) {
       return !!auth?.user;
     },
