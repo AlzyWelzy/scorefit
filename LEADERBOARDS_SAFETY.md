@@ -42,8 +42,11 @@ launch-blocking (see [GAMIFICATION.md](GAMIFICATION.md) → safety section).
       GDPR-K age, raise `MIN_AGE` — the gate is centralized so it's a one-line change.*
 - [x] **Registration-level age gate** — birth year collected at sign-up and stored;
       under-`MIN_AGE` users keep the private log but are blocked from public/social.
-- [x] **Upstash rate limiting mandatory in production** — `assertEnv()` now *throws*
-      (not warns) at prod startup if `UPSTASH_*` is missing (skipped during build phase).
+- [x] **Upstash rate limiting available + enforceable in production** — `assertEnv()`
+      warns loudly when `UPSTASH_*` is missing and hard-fails boot only when
+      `REQUIRE_UPSTASH=true` (fail-closed opt-in). Default is graceful degradation to
+      in-memory limiting so a missing-env deploy never bricks login. **To go fail-closed
+      for launch, set `REQUIRE_UPSTASH=true` with the Upstash vars configured.**
 - [x] **Data-export + delete flows cover leaderboard/consent fields** — export includes
       them; delete cascades them.
 - [x] **ED-safety review** — design review complete and recorded in

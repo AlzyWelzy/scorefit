@@ -7,16 +7,18 @@ const required = z.object({
 });
 
 /**
- * Validate environment at startup (called from instrumentation.ts). Throws fast with
- * a clear message on missing hard requirements; warns (doesn't crash) on
- * recommended-but-missing production config so misconfiguration is visible early
- * instead of failing deep in a request.
+ * Validate environment at startup (called from instrumentation.ts). Throws fast ONLY on
+ * the two genuinely-fatal requirements (DATABASE_URL, AUTH_SECRET) — without those the
+ * app truly cannot serve a request. Everything else WARNS loudly but never crashes the
+ * server, because a crashed auth server (no logins at all) is strictly worse than the
+ * thing the missing config would have prevented.
  *
- * In production, Upstash is treated as a HARD requirement: distributed rate limiting
- * is the foundation every anti-abuse path (register/login/2FA/leaderboard writes)
- * leans on, and the in-memory fallback is per-instance — bypassable on serverless.
- * We do NOT enforce it during `next build` (NEXT_PHASE = phase-production-build),
- * where runtime secrets are typically absent; the check fires when the server boots.
+ * Upstash (distributed rate limiting) is STRONGLY recommended in production — without it
+ * the limiter degrades to per-instance/in-memory (bypassable on serverless). But it is
+ * enforced as a hard boot requirement ONLY when REQUIRE_UPSTASH=true is explicitly set,
+ * so a deploy that simply forgot to configure it degrades gracefully instead of bricking
+ * login on every cold start. (This is the fix for "login fails / try again after a while":
+ * idle serverless instances cold-start, and a hard-fail here took down auth entirely.)
  */
 export function assertEnv(): void {
   const parsed = required.safeParse(process.env);
@@ -27,22 +29,26 @@ export function assertEnv(): void {
 
   const isProd = process.env.NODE_ENV === "production";
   const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
+  if (!isProd || isBuildPhase) return;
 
-  if (isProd && !isBuildPhase) {
-    if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
-      throw new Error(
-        "[env] UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN are required in " +
-          "production — distributed rate limiting backs all anti-abuse paths and the " +
-          "in-memory fallback is per-instance (bypassable on serverless). Set them, " +
-          "or run with NODE_ENV != production for local/in-memory use.",
-      );
-    }
+  const hasUpstash = !!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+
+  // Opt-in hard enforcement for operators who want a fail-closed posture.
+  if (!hasUpstash && process.env.REQUIRE_UPSTASH === "true") {
+    throw new Error(
+      "[env] REQUIRE_UPSTASH=true but UPSTASH_REDIS_REST_URL/_TOKEN are missing. " +
+        "Set them, or unset REQUIRE_UPSTASH to allow the in-memory fallback.",
+    );
   }
 
-  if (isProd) {
-    const warn: string[] = [];
-    if (!process.env.SMTP_HOST) warn.push("SMTP_* — transactional email (verification, 2FA, reminders) will fail");
-    if (!process.env.CRON_SECRET) warn.push("CRON_SECRET — scheduled jobs (streak freezes, seasons, reminders) are unprotected/disabled");
-    if (warn.length) console.warn("[env] production is missing recommended config:\n  - " + warn.join("\n  - "));
+  const warn: string[] = [];
+  if (!hasUpstash) {
+    warn.push(
+      "UPSTASH_REDIS_REST_URL/_TOKEN — STRONGLY recommended in production; without it " +
+        "rate limiting is per-instance/in-memory (bypassable on serverless). Set REQUIRE_UPSTASH=true to enforce.",
+    );
   }
+  if (!process.env.SMTP_HOST) warn.push("SMTP_* — transactional email (verification, 2FA, reminders) will fail");
+  if (!process.env.CRON_SECRET) warn.push("CRON_SECRET — scheduled jobs (streak freezes, seasons, reminders) are unprotected/disabled");
+  if (warn.length) console.warn("[env] production is missing recommended config:\n  - " + warn.join("\n  - "));
 }

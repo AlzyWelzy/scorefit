@@ -102,7 +102,7 @@ git push -u origin main
 
 > **Database migrations:** apply with `drizzle-kit migrate` (journal-tracked, ordered) — **not** `db:push` (which diffs live schema and risks drift). The `.github/workflows/migrate.yml` workflow runs `npm run db:migrate` on every merge to `main` when the `DATABASE_URL` repo secret is set; run it before/with the Vercel deploy. Locally: `npm run db:migrate`.
 >
-> **Required production env:** `DATABASE_URL`, `AUTH_SECRET`, and `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` (rate limiting is **mandatory in prod** — the server refuses to boot without Upstash). Recommended: `SMTP_*` (transactional email), `CRON_SECRET` (scheduled jobs), `SENTRY_DSN` (error reporting; `npm i @sentry/nextjs` to activate forwarding).
+> **Required production env:** `DATABASE_URL`, `AUTH_SECRET` (the app refuses to boot without these). **Strongly recommended:** `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` — without them rate limiting degrades to per-instance/in-memory (bypassable on serverless); the app still runs. Set `REQUIRE_UPSTASH=true` to make missing Upstash a hard boot failure (fail-closed). Also recommended: `SMTP_*` (transactional email), `CRON_SECRET` (scheduled jobs), `SENTRY_DSN` (error reporting; `npm i @sentry/nextjs` to activate forwarding).
 
 ### 3. Add the domain
 - Project → **Settings → Domains** → add `scorefit.net` and `www.scorefit.net`.
