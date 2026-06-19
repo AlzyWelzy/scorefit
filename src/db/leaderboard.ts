@@ -2,6 +2,7 @@ import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { users, workoutSessions, prEvents } from "@/db/schema";
 import { computeStreak } from "@/lib/game/streak";
+import { mutualFollowIds } from "@/db/social";
 
 // Leaderboards are computed on read from existing data (no materialized table) —
 // fine for the current scale; materialize behind a cron if the opted-in population
@@ -76,6 +77,30 @@ export async function getPrCountBoard(viewerId: string, limit = 25): Promise<Lea
   const nByUser = new Map(counts.map((c) => [c.userId, c.n]));
   return rank(
     us.map((u) => ({ id: u.id, name: displayFor(u), value: nByUser.get(u.id) ?? 0 })),
+    viewerId,
+    limit,
+  );
+}
+
+/**
+ * Friends-scoped consistency board: the viewer + their mutual-follow friends who have
+ * opted in. No MIN_PARTICIPANTS floor (a friends board is inherently small and the
+ * members already know each other), but still respects opt-in / suspension / opt-out.
+ */
+export async function getFriendsBoard(viewerId: string, today: string, limit = 25): Promise<LeaderRow[]> {
+  const friendIds = await mutualFollowIds(viewerId);
+  const scope = [viewerId, ...friendIds];
+  const us = (await optedInUsers()).filter((u) => scope.includes(u.id));
+  if (us.length === 0) return [];
+  const ids = us.map((u) => u.id);
+  const sessions = await db
+    .select({ userId: workoutSessions.userId, sessionDate: workoutSessions.sessionDate })
+    .from(workoutSessions)
+    .where(and(inArray(workoutSessions.userId, ids), eq(workoutSessions.qualifies, true)));
+  const byUser = new Map<string, string[]>();
+  for (const s of sessions) (byUser.get(s.userId) ?? byUser.set(s.userId, []).get(s.userId)!).push(s.sessionDate);
+  return rank(
+    us.map((u) => ({ id: u.id, name: displayFor(u), value: computeStreak(byUser.get(u.id) ?? [], today).rollingConsistency })),
     viewerId,
     limit,
   );

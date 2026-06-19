@@ -1,7 +1,7 @@
 import "server-only";
-import { and, desc, eq, inArray, not, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, not, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { follows, blocks, activityEvents, reactions, users, type ActivityEvent } from "@/db/schema";
+import { follows, blocks, activityEvents, reactions, eventComments, users, type ActivityEvent } from "@/db/schema";
 
 export type ActivityKind = ActivityEvent["kind"];
 
@@ -114,7 +114,26 @@ export async function getFeed(viewerId: string, limit = 50): Promise<FeedItem[]>
     .where(sql`${blocks.blockerId} = ${viewerId} or ${blocks.blockedId} = ${viewerId}`);
   const hidden = new Set<string>();
   for (const b of blocked) hidden.add(b.blocker === viewerId ? b.blocked : b.blocker);
-  const visible = ids.filter((id) => !hidden.has(id));
+  let visible = ids.filter((id) => !hidden.has(id));
+  if (visible.length === 0) return [];
+
+  // Privacy: an author's events appear only if NOT sharing-paused AND their visibility
+  // admits this viewer — public = any follower (all `visible` here follow them);
+  // friends = mutual follow only; private = nobody. Evaluated at read (re-checked every
+  // load) so going private/paused retroactively narrows the footprint.
+  const settings = await db
+    .select({ id: users.id, vis: users.profileVisibility, paused: users.sharingPaused })
+    .from(users)
+    .where(inArray(users.id, visible));
+  const mutuals = new Set(await mutualFollowIds(viewerId));
+  const allowedAuthor = new Map(settings.map((s) => [s.id, s]));
+  visible = visible.filter((id) => {
+    const s = allowedAuthor.get(id);
+    if (!s || s.paused) return false;
+    if (s.vis === "private") return false;
+    if (s.vis === "friends") return mutuals.has(id);
+    return true; // public
+  });
   if (visible.length === 0) return [];
 
   const rows = await db
@@ -171,6 +190,48 @@ export async function toggleKudos(userId: string, eventId: string): Promise<{ ku
   }
   await db.insert(reactions).values({ eventId, userId }).onConflictDoNothing();
   return { kudosed: true };
+}
+
+// ─── Comments ────────────────────────────────────────────────────────────────
+
+/** Add a comment to an event (≤280 chars enforced by caller). Blocked authors barred. */
+export async function addComment(userId: string, eventId: string, body: string): Promise<string | null> {
+  const [ev] = await db
+    .select({ authorId: activityEvents.userId })
+    .from(activityEvents)
+    .where(eq(activityEvents.id, eventId))
+    .limit(1);
+  if (!ev) return null;
+  if (await eitherBlocks(userId, ev.authorId)) return null;
+  const [row] = await db
+    .insert(eventComments)
+    .values({ eventId, authorId: userId, body })
+    .returning({ id: eventComments.id });
+  return row?.id ?? null;
+}
+
+export type CommentRow = { id: string; authorName: string; body: string; createdAt: Date };
+
+/** Visible (non-hidden) comments for an event, oldest first. */
+export async function getComments(eventId: string): Promise<CommentRow[]> {
+  const rows = await db
+    .select({
+      id: eventComments.id,
+      authorId: eventComments.authorId,
+      authorName: users.displayName,
+      body: eventComments.body,
+      createdAt: eventComments.createdAt,
+    })
+    .from(eventComments)
+    .innerJoin(users, eq(eventComments.authorId, users.id))
+    .where(and(eq(eventComments.eventId, eventId), isNull(eventComments.hiddenAt)))
+    .orderBy(asc(eventComments.createdAt));
+  return rows.map((r) => ({ id: r.id, authorName: displayName(r.authorName, r.authorId), body: r.body, createdAt: r.createdAt }));
+}
+
+/** Soft-delete a comment (moderation / author). */
+export async function hideComment(commentId: string): Promise<void> {
+  await db.update(eventComments).set({ hiddenAt: new Date() }).where(eq(eventComments.id, commentId));
 }
 
 /** Mutual follows = "friends" (derived). Used for friend-scoped surfaces later. */

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { auth } from "@/auth";
-import { getUserById, setName, setPendingEmail, setPasswordHash, changeUnit, setTimezone, updateLeaderboardProfile, setGamificationOptOut, setCurrentPosition, emailExists } from "@/db/users";
+import { getUserById, setName, setPendingEmail, setPasswordHash, changeUnit, setTimezone, updateLeaderboardProfile, setGamificationOptOut, setCurrentPosition, setSocialPrivacy, emailExists } from "@/db/users";
 import { issueToken } from "@/db/tokens";
 import { sendVerificationCode } from "@/lib/mailer";
 import { sameOrigin, rateLimit, clientIp } from "@/lib/rateLimit";
@@ -28,6 +28,9 @@ const patchSchema = z.object({
   // present together to set a position.
   currentProgram: z.enum(["beginner", "intermediate"]).optional(),
   currentWeek: z.number().int().min(1).max(52).optional(),
+  // Social privacy (Phase 5): visibility tier + global sharing-pause kill switch.
+  profileVisibility: z.enum(["private", "friends", "public"]).optional(),
+  sharingPaused: z.boolean().optional(),
   // Required only when changing email or password.
   currentPassword: z.string().optional(),
   newPassword: z.string().min(8).optional(),
@@ -46,7 +49,7 @@ export async function PATCH(req: Request) {
       { status: 400 },
     );
   }
-  const { name, email, unit, timezone, leaderboardOptIn, displayName, birthYear, gamificationOptOut, currentProgram, currentWeek, currentPassword, newPassword } = parsed.data;
+  const { name, email, unit, timezone, leaderboardOptIn, displayName, birthYear, gamificationOptOut, currentProgram, currentWeek, profileVisibility, sharingPaused, currentPassword, newPassword } = parsed.data;
   if (timezone !== undefined && !isValidTimeZone(timezone)) {
     return NextResponse.json({ error: "Invalid timezone." }, { status: 400 });
   }
@@ -91,6 +94,10 @@ export async function PATCH(req: Request) {
   // "Where you are" — set when both program and week are provided (onboarding).
   if (currentProgram !== undefined && currentWeek !== undefined) {
     await setCurrentPosition(user.id, currentProgram, currentWeek);
+  }
+  // Social privacy tier + sharing-pause kill switch.
+  if (profileVisibility !== undefined || sharingPaused !== undefined) {
+    await setSocialPrivacy(user.id, { profileVisibility, sharingPaused });
   }
   // Apply the gamification switch first so opting out can force-clear the board opt-in
   // before any leaderboard-profile update in the same request is considered.

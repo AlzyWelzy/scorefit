@@ -9,7 +9,7 @@ import {
   achievementProgress,
   prEvents,
 } from "@/db/schema";
-import { buildWeekCoordinates, weekCount, getExercise, type ProgramId } from "@/lib/data";
+import { buildWeekCoordinates, weekCount, getExercise, isDeload, type ProgramId } from "@/lib/data";
 import { archetypeFor, equipmentFor } from "@/lib/movement";
 import { e1rm } from "@/lib/strength";
 import { weekStartOf, addDays } from "@/lib/time";
@@ -229,6 +229,7 @@ export async function evaluateGameEvents(
     const distinctEx = new Set<string>();
     const archetypes = new Set<string>();
     const equipment = new Set<string>();
+    const deloadWeeksKept = new Set<string>(); // `${program}:${week}` for deload weeks trained
     const completedByProgram: Record<string, number> = { beginner: 0, intermediate: 0 };
     for (const l of completedLogs) {
       if (!validCoordsFor(l.program).has(`${l.week}|${l.daySlug}|${l.exerciseSlug}|${l.setIndex}`)) continue;
@@ -236,6 +237,7 @@ export async function evaluateGameEvents(
       distinctEx.add(l.exerciseSlug);
       if (l.weight != null && l.reps != null) lifetimeTonnageRaw += l.weight * l.reps;
       completedByProgram[l.program] = (completedByProgram[l.program] ?? 0) + 1;
+      if (isDeload(l.week)) deloadWeeksKept.add(`${l.program}:${l.week}`);
       if (l.rpe != null && l.rpe >= 5 && l.rpe <= 10) rpeSetCount += 1;
       // Breadth + push/pull balance: classify by exercise NAME (the heuristics are
       // name-based). Unknown slugs fall through to "static"/default, harmless here.
@@ -278,6 +280,7 @@ export async function evaluateGameEvents(
       rpeSetCount,
       pushSets,
       pullSets,
+      deloadWeeksKept: deloadWeeksKept.size,
     };
 
     // ---- evaluate achievements (earned ones are permanent: never downgraded/removed) ----

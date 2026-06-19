@@ -168,6 +168,17 @@ export async function updateLeaderboardProfile(
   if (Object.keys(set).length) await db.update(users).set(set).where(eq(users.id, id));
 }
 
+/** Update the social privacy tier and/or the global sharing-pause kill switch. */
+export async function setSocialPrivacy(
+  id: string,
+  patch: { profileVisibility?: "private" | "friends" | "public"; sharingPaused?: boolean },
+): Promise<void> {
+  const set: Partial<typeof users.$inferInsert> = {};
+  if (patch.profileVisibility !== undefined) set.profileVisibility = patch.profileVisibility;
+  if (patch.sharingPaused !== undefined) set.sharingPaused = patch.sharingPaused;
+  if (Object.keys(set).length) await db.update(users).set(set).where(eq(users.id, id));
+}
+
 export async function markEmailVerified(id: string): Promise<void> {
   await db.update(users).set({ emailVerified: new Date() }).where(eq(users.id, id));
 }

@@ -29,6 +29,7 @@ export type AchievementContext = {
   rpeSetCount: number; // completed sets logged with a sane RPE
   pushSets: number; // completed pressing/triceps sets
   pullSets: number; // completed pulling/curl sets
+  deloadWeeksKept: number; // distinct deload program-weeks the user actually trained (qualified)
 };
 
 // Totals the collection badges target — kept in sync with movement.ts.
@@ -257,6 +258,20 @@ export const ACHIEVEMENTS: AchievementRule[] = [
       unlocked: c.daysSinceLastSession != null && c.daysSinceLastSession >= 14,
       tier: null,
       progressValue: c.daysSinceLastSession != null && c.daysSinceLastSession >= 14 ? 1 : 0,
+      progressMax: 1,
+    }),
+  },
+  {
+    id: "deload_discipline",
+    category: "hidden",
+    title: "Deload Discipline",
+    description: "Train a deload week as prescribed instead of skipping it — recovery is part of the plan.",
+    hidden: true,
+    progressKey: "hidden:deload_discipline",
+    evaluate: (c) => ({
+      unlocked: c.deloadWeeksKept >= 1,
+      tier: null,
+      progressValue: Math.min(c.deloadWeeksKept, 1),
       progressMax: 1,
     }),
   },
