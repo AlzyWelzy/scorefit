@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { auth } from "@/auth";
-import { getUserById, setName, setPendingEmail, setPasswordHash, changeUnit, setTimezone, updateLeaderboardProfile, setGamificationOptOut, emailExists } from "@/db/users";
+import { getUserById, setName, setPendingEmail, setPasswordHash, changeUnit, setTimezone, updateLeaderboardProfile, setGamificationOptOut, setCurrentPosition, emailExists } from "@/db/users";
 import { issueToken } from "@/db/tokens";
 import { sendVerificationCode } from "@/lib/mailer";
 import { sameOrigin, rateLimit, clientIp } from "@/lib/rateLimit";
@@ -24,6 +24,10 @@ const patchSchema = z.object({
   birthYear: z.number().int().min(1900).max(2100).optional(),
   // Hard anti-compulsion switch — turns off all gamification mechanics for the user.
   gamificationOptOut: z.boolean().optional(),
+  // "Where you are" — set at onboarding (and updated as the user logs). Both must be
+  // present together to set a position.
+  currentProgram: z.enum(["beginner", "intermediate"]).optional(),
+  currentWeek: z.number().int().min(1).max(52).optional(),
   // Required only when changing email or password.
   currentPassword: z.string().optional(),
   newPassword: z.string().min(8).optional(),
@@ -42,7 +46,7 @@ export async function PATCH(req: Request) {
       { status: 400 },
     );
   }
-  const { name, email, unit, timezone, leaderboardOptIn, displayName, birthYear, gamificationOptOut, currentPassword, newPassword } = parsed.data;
+  const { name, email, unit, timezone, leaderboardOptIn, displayName, birthYear, gamificationOptOut, currentProgram, currentWeek, currentPassword, newPassword } = parsed.data;
   if (timezone !== undefined && !isValidTimeZone(timezone)) {
     return NextResponse.json({ error: "Invalid timezone." }, { status: 400 });
   }
@@ -84,6 +88,10 @@ export async function PATCH(req: Request) {
   // Switching units converts stored loads so the same physical weight is preserved.
   if (unit !== undefined && unit !== user.unit) await changeUnit(user.id, user.unit as "kg" | "lb", unit);
   if (timezone !== undefined && timezone !== user.timezone) await setTimezone(user.id, timezone);
+  // "Where you are" — set when both program and week are provided (onboarding).
+  if (currentProgram !== undefined && currentWeek !== undefined) {
+    await setCurrentPosition(user.id, currentProgram, currentWeek);
+  }
   // Apply the gamification switch first so opting out can force-clear the board opt-in
   // before any leaderboard-profile update in the same request is considered.
   if (gamificationOptOut !== undefined && gamificationOptOut !== user.gamificationOptOut) {

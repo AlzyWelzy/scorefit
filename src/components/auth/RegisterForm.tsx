@@ -50,15 +50,17 @@ export function RegisterForm() {
 
     // The register API is enumeration-safe: it always returns { ok: true }.
     // Try to sign in — succeeds for genuinely new accounts (which land on
-    // email verification), fails if the email already existed with a
-    // different password (send them to login instead).
+    // onboarding), fails if the email already existed with a different password
+    // (send them to login instead).
     const signin = await signIn("credentials", { email, password, redirect: false });
     setBusy(false);
     if (signin?.error) {
       router.push("/login");
       return;
     }
-    router.push("/verify-email");
+    // New accounts go to onboarding (choose program/week/unit); the verify-email
+    // banner still nudges verification globally. /onboarding skips to /log if already set.
+    router.push("/onboarding");
     router.refresh();
   }
 
