@@ -24,6 +24,9 @@ export async function GET() {
       verified: !!user.emailVerified,
       unit: user.unit,
       twoFactorEnabled: user.twoFactorEnabled,
+      // "Where you are" — lets the client TodayCard deep-link to the current week.
+      currentProgram: user.currentProgram,
+      currentWeek: user.currentWeek,
     },
     { headers: { "Cache-Control": "no-store" } },
   );

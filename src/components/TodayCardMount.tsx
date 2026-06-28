@@ -1,10 +1,12 @@
-import { weekdayDayMap } from "@/lib/today";
+import { weekdayDayMapsByWeek } from "@/lib/today";
 import { TodayCard } from "./TodayCard";
 
+// Stays a synchronous (statically-prerenderable) component — it ships every week's
+// day map for both programs, and the client TodayCard picks the user's current week.
 export function TodayCardMount() {
-  const maps = {
-    beginner: weekdayDayMap("beginner"),
-    intermediate: weekdayDayMap("intermediate"),
+  const mapsByWeek = {
+    beginner: weekdayDayMapsByWeek("beginner"),
+    intermediate: weekdayDayMapsByWeek("intermediate"),
   };
-  return <TodayCard maps={maps} />;
+  return <TodayCard mapsByWeek={mapsByWeek} />;
 }

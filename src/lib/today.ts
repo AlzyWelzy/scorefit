@@ -26,4 +26,17 @@ export function weekdayDayMap(programId: ProgramId, week = 1): Record<string, Da
   return map;
 }
 
+/**
+ * Per-week weekday→day maps for a program (week number → weekday → day info). Day slugs
+ * can differ by week (deload weeks rename days), so resuming at the user's current week
+ * needs that week's map, not week 1's.
+ */
+export function weekdayDayMapsByWeek(programId: ProgramId): Record<number, Record<string, DayHit>> {
+  const program = getProgram(programId);
+  const out: Record<number, Record<string, DayHit>> = {};
+  if (!program) return out;
+  for (const w of program.weeks) out[w.number] = weekdayDayMap(programId, w.number);
+  return out;
+}
+
 export { WEEKDAYS };

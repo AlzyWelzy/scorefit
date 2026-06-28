@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { getLogsForWeek, upsertSetLog } from "@/db/logs";
+import { getSessionQualifies } from "@/db/sessions";
 import { evaluateGameEvents } from "@/db/game";
 import { getUserById, setCurrentPosition } from "@/db/users";
 import { emitActivityEvent } from "@/db/social";
@@ -109,6 +110,11 @@ export async function POST(req: Request) {
     if (game) {
       const day = resolveLocalDate(session.user.timezone, loggedAt);
       try {
+        // "Trained today" — emitted once per qualifying calendar day (the event table
+        // dedupes on userId+kind+occurredOn, so re-saving sets the same day is a no-op).
+        if (row.completed && (await getSessionQualifies(session.user.id, row.program, row.week, row.daySlug))) {
+          await emitActivityEvent(session.user.id, "session_completed", day, { program: row.program });
+        }
         if (game.newPr) {
           await emitActivityEvent(session.user.id, "e1rm_pr", day, {
             exerciseSlug: game.newPr.exerciseSlug,
@@ -116,7 +122,17 @@ export async function POST(req: Request) {
           });
         }
         for (const a of game.newlyUnlocked) {
-          if (!a.hidden) await emitActivityEvent(session.user.id, "achievement", day, { id: a.id, title: a.title });
+          // The block-finisher achievements get the dedicated "completed a training
+          // block" feed event instead of a generic achievement line; the trophy is still
+          // recorded in user_achievements regardless, and the achievement is one-time so
+          // this fires once per program.
+          if (a.id === "block_finisher_beginner" || a.id === "block_finisher_intermediate") {
+            await emitActivityEvent(session.user.id, "program_completed", day, {
+              program: a.id === "block_finisher_beginner" ? "beginner" : "intermediate",
+            });
+          } else if (!a.hidden) {
+            await emitActivityEvent(session.user.id, "achievement", day, { id: a.id, title: a.title });
+          }
         }
       } catch (err) {
         await captureException(err, { where: "social.emit", extra: { userId: session.user.id } });

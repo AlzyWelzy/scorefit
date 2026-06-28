@@ -28,8 +28,10 @@ function describe(item: FeedItem): string {
       return `unlocked “${d.title ?? "an achievement"}”`;
     case "streak_milestone":
       return `reached a ${d.weeks ?? ""}-week streak`;
-    case "program_completed":
-      return `completed a training block`;
+    case "program_completed": {
+      const prog = d.program === "beginner" ? "Beginner" : d.program === "intermediate" ? "Int/Adv" : null;
+      return prog ? `completed the ${prog} block` : `completed a training block`;
+    }
     case "session_completed":
       return `trained`;
     default:

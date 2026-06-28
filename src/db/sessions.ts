@@ -128,3 +128,29 @@ export async function syncSessionForLog(
       });
   });
 }
+
+/**
+ * Whether the dated session for this program-day currently clears the honesty floor.
+ * Reads the derived projection (not raw logs), so it reflects the same `qualifies` the
+ * roll-up computed. Drives the "trained" (session_completed) feed event.
+ */
+export async function getSessionQualifies(
+  userId: string,
+  program: ProgramId,
+  week: number,
+  daySlug: string,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ qualifies: workoutSessions.qualifies })
+    .from(workoutSessions)
+    .where(
+      and(
+        eq(workoutSessions.userId, userId),
+        eq(workoutSessions.program, program),
+        eq(workoutSessions.week, week),
+        eq(workoutSessions.daySlug, daySlug),
+      ),
+    )
+    .limit(1);
+  return !!row?.qualifies;
+}

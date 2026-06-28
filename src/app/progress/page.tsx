@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { getProgramOrThrow, getProgramPrescription, isProgramId, PROGRAM_META, type ProgramId } from "@/lib/data";
-import { getLogsForProgram } from "@/db/logs";
+import { getWeeklyTonnage, getBestE1rmByExercise, getCompletedSetsForProgram } from "@/db/logs";
 import { getStreakSummary } from "@/db/streaks";
 import { getUserById } from "@/db/users";
 import { getBodyWeightHistory } from "@/db/bodyMetrics";
@@ -41,8 +41,13 @@ export default async function ProgressPage({
   // Streak is a gamification mechanic — skip it (and hide its UI) when the user has
   // turned gamification off. Tonnage / e1RM / PR list are plain training data, kept.
   const gamificationOn = !user?.gamificationOptOut;
-  const [logs, streak, bodyHistory] = await Promise.all([
-    getLogsForProgram(session.user.id, program),
+  // Tonnage-per-week and best-e1RM-per-exercise are aggregated in SQL; only the
+  // completed coordinates (for in-prescription counting + per-muscle volume) come back
+  // as rows. All four reads overlap.
+  const [completedSets, tonnageByWeek, bestRows, streak, bodyHistory] = await Promise.all([
+    getCompletedSetsForProgram(session.user.id, program),
+    getWeeklyTonnage(session.user.id, program),
+    getBestE1rmByExercise(session.user.id, program),
     gamificationOn
       ? getStreakSummary(session.user.id, resolveLocalDate(session.user.timezone))
       : Promise.resolve(null),
@@ -54,29 +59,14 @@ export default async function ProgressPage({
   // space /log and the session roll-up use), so it's not rebuilt every request.
   const { prescribed, validCoords, nameBySlug, totalPrescribed } = getProgramPrescription(program);
 
+  // In-prescription completed sets per week (the only part that needs the app-side
+  // coordinate set, so it stays in JS over the projected rows).
   const done = new Map<number, number>();
-  const tonnage = new Map<number, number>();
-  // Best e1RM per exercise across the program → PR list + trend.
-  const bestByExercise = new Map<string, { e1rm: number; weight: number; reps: number; week: number }>();
-
   let latestLoggedWeek = 0;
-  for (const l of logs) {
-    if (!l.completed) continue;
-    const inProgram = validCoords.has(`${l.week}|${l.daySlug}|${l.exerciseSlug}|${l.setIndex}`);
-    if (inProgram) {
-      done.set(l.week, (done.get(l.week) ?? 0) + 1);
-      if (l.week > latestLoggedWeek) latestLoggedWeek = l.week;
-    }
-    if (l.weight != null && l.reps != null) {
-      tonnage.set(l.week, (tonnage.get(l.week) ?? 0) + l.weight * l.reps);
-      if (l.reps > 0 && l.weight > 0) {
-        const est = e1rm(l.weight, l.reps);
-        const cur = bestByExercise.get(l.exerciseSlug);
-        if (!cur || est > cur.e1rm) {
-          bestByExercise.set(l.exerciseSlug, { e1rm: est, weight: l.weight, reps: l.reps, week: l.week });
-        }
-      }
-    }
+  for (const l of completedSets) {
+    if (!validCoords.has(`${l.week}|${l.daySlug}|${l.exerciseSlug}|${l.setIndex}`)) continue;
+    done.set(l.week, (done.get(l.week) ?? 0) + 1);
+    if (l.week > latestLoggedWeek) latestLoggedWeek = l.week;
   }
 
   // Per-muscle weekly set volume vs MEV/MAV/MRV for the most recent logged week —
@@ -84,10 +74,9 @@ export default async function ProgressPage({
   // in-program sets, mapped to muscles by exercise name.
   const muscleVolume = latestLoggedWeek
     ? weeklyMuscleVolume(
-        logs
+        completedSets
           .filter(
             (l) =>
-              l.completed &&
               l.week === latestLoggedWeek &&
               validCoords.has(`${l.week}|${l.daySlug}|${l.exerciseSlug}|${l.setIndex}`),
           )
@@ -95,12 +84,13 @@ export default async function ProgressPage({
       )
     : [];
 
+  const tonnage = tonnageByWeek;
   const maxTonnage = Math.max(1, ...Array.from(tonnage.values()));
   const totalDone = Array.from(done.values()).reduce((a, b) => a + b, 0);
   const totalTonnage = Array.from(tonnage.values()).reduce((a, b) => a + b, 0);
 
-  const prs = Array.from(bestByExercise.entries())
-    .map(([slug, b]) => ({ name: nameBySlug.get(slug) ?? slug, ...b }))
+  const prs = bestRows
+    .map((b) => ({ name: nameBySlug.get(b.exerciseSlug) ?? b.exerciseSlug, e1rm: e1rm(b.weight, b.reps), weight: b.weight, reps: b.reps, week: b.week }))
     .sort((a, b) => b.e1rm - a.e1rm)
     .slice(0, 8);
 
@@ -180,7 +170,7 @@ export default async function ProgressPage({
         </div>
       )}
 
-      {logs.length === 0 ? (
+      {completedSets.length === 0 ? (
         <p className="glass mt-10 px-5 py-10 text-center text-muted">
           No sets logged yet. <Link href="/log" className="text-accent hover:underline">Start logging →</Link>
         </p>

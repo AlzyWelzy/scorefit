@@ -37,6 +37,79 @@ export const getLogsForProgram = cache(
   },
 );
 
+// ─── /progress aggregates (computed in SQL, not by scanning rows in JS) ──────────
+
+/** Completed tonnage (Σ weight×reps) per week for a program. Backed by idx_log_user_program. */
+export async function getWeeklyTonnage(userId: string, program: ProgramId): Promise<Map<number, number>> {
+  const rows = await db
+    .select({
+      week: workoutLogs.week,
+      tonnage: sql<number>`coalesce(sum(${workoutLogs.weight} * ${workoutLogs.reps}), 0)::float8`,
+    })
+    .from(workoutLogs)
+    .where(
+      and(
+        eq(workoutLogs.userId, userId),
+        eq(workoutLogs.program, program),
+        eq(workoutLogs.completed, true),
+        sql`${workoutLogs.weight} is not null and ${workoutLogs.reps} is not null`,
+      ),
+    )
+    .groupBy(workoutLogs.week);
+  return new Map(rows.map((r) => [r.week, r.tonnage]));
+}
+
+/**
+ * Best Epley e1RM per exercise across a program — the PR list. DISTINCT ON keeps one row
+ * per exercise; the ORDER BY makes it the heaviest-estimated set (e1RM desc), so the DB
+ * does the per-exercise max instead of a JS scan. The display e1RM is recomputed via the
+ * shared `e1rm()` helper from the returned weight/reps so it matches everywhere.
+ */
+export async function getBestE1rmByExercise(
+  userId: string,
+  program: ProgramId,
+): Promise<{ exerciseSlug: string; weight: number; reps: number; week: number }[]> {
+  const rows = await db
+    .selectDistinctOn([workoutLogs.exerciseSlug], {
+      exerciseSlug: workoutLogs.exerciseSlug,
+      weight: workoutLogs.weight,
+      reps: workoutLogs.reps,
+      week: workoutLogs.week,
+    })
+    .from(workoutLogs)
+    .where(
+      and(
+        eq(workoutLogs.userId, userId),
+        eq(workoutLogs.program, program),
+        eq(workoutLogs.completed, true),
+        sql`${workoutLogs.weight} > 0 and ${workoutLogs.reps} > 0`,
+      ),
+    )
+    .orderBy(workoutLogs.exerciseSlug, desc(sql`${workoutLogs.weight} * (1 + ${workoutLogs.reps} / 30.0)`));
+  // weight/reps are non-null here (WHERE > 0), but the column types are nullable.
+  return rows.map((r) => ({ exerciseSlug: r.exerciseSlug, weight: r.weight ?? 0, reps: r.reps ?? 0, week: r.week }));
+}
+
+/**
+ * Completed sets for a program, projected to just the coordinate columns the progress
+ * page needs for in-prescription counting and per-muscle volume — lighter to transfer
+ * than full rows, and completed-only.
+ */
+export async function getCompletedSetsForProgram(
+  userId: string,
+  program: ProgramId,
+): Promise<{ week: number; daySlug: string; exerciseSlug: string; setIndex: number }[]> {
+  return db
+    .select({
+      week: workoutLogs.week,
+      daySlug: workoutLogs.daySlug,
+      exerciseSlug: workoutLogs.exerciseSlug,
+      setIndex: workoutLogs.setIndex,
+    })
+    .from(workoutLogs)
+    .where(and(eq(workoutLogs.userId, userId), eq(workoutLogs.program, program), eq(workoutLogs.completed, true)));
+}
+
 export type SetLogInput = {
   program: ProgramId;
   week: number;

@@ -165,7 +165,6 @@ describe("replay protection scope", () => {
     expect(second).toBe(first);
   });
 
-  it.todo(
-    "advanceTotpStep CAS rejects a replayed step (integration test — needs Postgres)",
-  );
+  // The advanceTotpStep CAS that DOES block a replay is covered by the PGlite
+  // integration test in src/db/users.totp.test.ts.
 });
