@@ -4,6 +4,7 @@ import { getUserByEmail } from "@/db/users";
 import { issueToken } from "@/db/tokens";
 import { sendPasswordResetCode } from "@/lib/mailer";
 import { rateLimit, clientIp, sameOrigin } from "@/lib/rateLimit";
+import { captureException } from "@/lib/observability";
 
 export const runtime = "nodejs";
 
@@ -30,7 +31,7 @@ export async function POST(req: Request) {
       const code = await issueToken(user.id, "password_reset");
       await sendPasswordResetCode(user.email, code);
     } catch (err) {
-      console.error("[forgot-password] send failed", err);
+      await captureException(err, { where: "forgot-password.send" });
       // Still return ok to avoid leaking which path was taken.
     }
   }

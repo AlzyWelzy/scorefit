@@ -55,6 +55,10 @@ export default async function FeedPage() {
       <p className="mt-1.5 text-sm text-muted">
         Personal bests, achievements and milestones — never weight rankings. Give kudos to cheer them on.
       </p>
+      <div className="mt-2 flex gap-3 text-xs">
+        <Link href="/groups" className="text-data hover:underline">Groups →</Link>
+        <Link href="/leaderboards" className="text-data hover:underline">Leaderboards →</Link>
+      </div>
 
       {items.length === 0 ? (
         <p className="mt-8 rounded-card border border-line bg-surface px-5 py-10 text-center text-sm text-muted">

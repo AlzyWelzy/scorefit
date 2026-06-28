@@ -6,6 +6,7 @@ import { users } from "@/db/schema";
 import { issueToken } from "@/db/tokens";
 import { sendVerificationCode } from "@/lib/mailer";
 import { rateLimit, clientIp, sameOrigin } from "@/lib/rateLimit";
+import { captureException } from "@/lib/observability";
 
 export const runtime = "nodejs";
 
@@ -63,7 +64,7 @@ export async function POST(req: Request) {
       await sendVerificationCode(email, code);
     } catch (err) {
       // Don't fail registration if email delivery hiccups; they can resend.
-      console.error("[register] verification email failed", err);
+      await captureException(err, { where: "register.verifyEmail" });
     }
   }
 

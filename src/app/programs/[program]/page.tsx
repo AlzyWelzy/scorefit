@@ -6,6 +6,7 @@ import { getProgram, PROGRAM_META, blockFor, isDeload, type ProgramId } from "@/
 import { VolumeChart } from "@/components/VolumeChart";
 import { CountUp } from "@/components/motion/CountUp";
 import { Reveal, RevealGroup, RevealItem } from "@/components/motion/Reveal";
+import { breadcrumbs, ldJson } from "@/lib/structuredData";
 
 export function generateStaticParams() {
   return [{ program: "beginner" }, { program: "intermediate" }];
@@ -46,8 +47,15 @@ export default async function ProgramPage({
   if (!p) notFound();
   const meta = PROGRAM_META[program as ProgramId];
 
+  const ld = breadcrumbs([
+    { name: "Home", path: "/" },
+    { name: "Programs", path: "/programs" },
+    { name: p.name, path: `/programs/${program}` },
+  ]);
+
   return (
     <div className="mx-auto max-w-6xl px-5 py-14">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(ld) }} />
       <Reveal>
         <Link href="/programs" className="eyebrow-accent hover:text-fg">← Programs</Link>
         <h1 className="display-tight mt-3 font-display text-4xl font-bold sm:text-5xl">

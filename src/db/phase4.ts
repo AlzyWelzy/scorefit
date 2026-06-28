@@ -1,10 +1,26 @@
 import "server-only";
 import { and, eq, gte, isNull, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { userGameProfile, workoutSessions, challenges, challengeParticipants } from "@/db/schema";
+import { userGameProfile, workoutSessions, challenges, challengeParticipants, users } from "@/db/schema";
 import { weekStartOf, addDays } from "@/lib/time";
 import { computeStreak } from "@/lib/game/streak";
 import { currentSeasonId } from "@/lib/game/season";
+import { emitActivityEvent } from "@/db/social";
+
+// Kept-week streak milestones worth broadcasting: the first kept week, then 4/8/12,
+// then every 12 thereafter (24, 36, …). Cadence mirrors CHAIN_WEEKS (the 12-week chain
+// calendar) and FREEZE_EARN_EVERY (4) already in the codebase — habit floor, then a
+// quarter-ish beat — so we celebrate the milestones the UI already centres on without
+// spamming the feed every week.
+const STREAK_MILESTONES = [1, 4, 8, 12] as const;
+const STREAK_MILESTONE_EVERY = 12;
+
+/** True when `weeks` is a broadcast-worthy streak milestone (1/4/8/12, then every 12). */
+function isStreakMilestone(weeks: number): boolean {
+  if (weeks <= 0) return false;
+  if ((STREAK_MILESTONES as readonly number[]).includes(weeks)) return true;
+  return weeks > 12 && weeks % STREAK_MILESTONE_EVERY === 0;
+}
 
 // ─── Streak freezes ────────────────────────────────────────────────────────
 // Scarce + non-stockpiling: earn 1 freeze per FREEZE_EARN_EVERY kept weeks, capped at
@@ -76,6 +92,31 @@ export async function closeWeekForUser(userId: string, today: string): Promise<{
       updatedAt: new Date(),
     })
     .where(eq(userGameProfile.userId, userId));
+
+  // Broadcast a streak milestone for the just-finished week. The current (in-progress)
+  // week never counts toward the streak yet, so summary.currentStreak is the kept-week
+  // run ending at `justFinished` — the NEW value crossed this close. If we applied a
+  // freeze this run, summary was computed before it, so recompute with the final frozen
+  // set so a bridged week is reflected.
+  const keptWeeks = froze
+    ? computeStreak(rows.map((r) => r.sessionDate), today, undefined, new Set(), frozen).currentStreak
+    : summary.currentStreak;
+  if (isStreakMilestone(keptWeeks)) {
+    // Opted-out users never broadcast (the cron loop visits every profile regardless,
+    // unlike the write-path which is already inside a !gamificationOptOut branch).
+    const [actor] = await db
+      .select({ optOut: users.gamificationOptOut })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    if (actor && !actor.optOut) {
+      // Dated to the just-finished week's Monday → idempotent via uq_activity
+      // (userId, kind, occurredOn): re-running this week's close never double-emits, and
+      // each new milestone (a later week) lands on its own date. Visibility/pause/email
+      // gating is applied at READ time (getFeed), matching the other activity events.
+      await emitActivityEvent(userId, "streak_milestone", justFinished, { weeks: keptWeeks });
+    }
+  }
 
   return { froze };
 }

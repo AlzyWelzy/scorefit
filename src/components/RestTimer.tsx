@@ -142,16 +142,26 @@ export function RestTimer() {
 
   // Auto-start: the logger fires `scorefit-rest-start` when a set is marked complete,
   // so the timer kicks off at the current preset without the user touching it.
-  const startFresh = useCallback(() => {
-    const newEnd = Date.now() + total * 1000;
-    beeped.current = false;
-    setEndAt(newEnd);
-    setPausedLeft(null);
-    setLeft(total);
-    persist({ total, endAt: newEnd, pausedLeft: null });
-  }, [total, persist]);
+  const startFresh = useCallback(
+    (seconds?: number) => {
+      const dur = seconds && seconds > 0 ? Math.round(seconds) : total;
+      const newEnd = Date.now() + dur * 1000;
+      beeped.current = false;
+      setTotal(dur);
+      setEndAt(newEnd);
+      setPausedLeft(null);
+      setLeft(dur);
+      persist({ total: dur, endAt: newEnd, pausedLeft: null });
+    },
+    [total, persist],
+  );
   useEffect(() => {
-    const onStart = () => startFresh();
+    // The logger passes the exercise's prescribed rest (seconds) in the event detail;
+    // fall back to the current preset when it's absent.
+    const onStart = (e: Event) => {
+      const secs = (e as CustomEvent<{ seconds?: number | null }>).detail?.seconds;
+      startFresh(typeof secs === "number" && secs > 0 ? secs : undefined);
+    };
     window.addEventListener("scorefit-rest-start", onStart);
     return () => window.removeEventListener("scorefit-rest-start", onStart);
   }, [startFresh]);

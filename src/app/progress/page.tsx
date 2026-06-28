@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { buildWeekCoordinates, getProgramOrThrow, isProgramId, PROGRAM_META, type ProgramId } from "@/lib/data";
+import { getProgramOrThrow, getProgramPrescription, isProgramId, PROGRAM_META, type ProgramId } from "@/lib/data";
 import { getLogsForProgram } from "@/db/logs";
 import { getStreakSummary } from "@/db/streaks";
 import { getUserById } from "@/db/users";
@@ -49,18 +49,10 @@ export default async function ProgressPage({
     getBodyWeightHistory(session.user.id),
   ]);
 
-  // Valid prescription coordinates per week, so stale logs (after a program
-  // edit) don't push "done" above "prescribed". Shares buildWeekCoordinates with
-  // /log and the session roll-up so the slug/set math never diverges.
-  const prescribed = new Map<number, number>();
-  const validCoords = new Set<string>();
-  const nameBySlug = new Map<string, string>();
-  for (const w of prog.weeks) {
-    const wc = buildWeekCoordinates(program, w.number);
-    prescribed.set(w.number, wc.prescribedSets);
-    for (const key of wc.coordKeys) validCoords.add(`${w.number}|${key}`);
-    for (const d of wc.days) for (const ex of d.exercises) nameBySlug.set(ex.slug, ex.name);
-  }
+  // Valid prescription coordinates per week, so stale logs (after a program edit)
+  // don't push "done" above "prescribed". Memoized per program (the same coordinate
+  // space /log and the session roll-up use), so it's not rebuilt every request.
+  const { prescribed, validCoords, nameBySlug, totalPrescribed } = getProgramPrescription(program);
 
   const done = new Map<number, number>();
   const tonnage = new Map<number, number>();
@@ -105,7 +97,6 @@ export default async function ProgressPage({
 
   const maxTonnage = Math.max(1, ...Array.from(tonnage.values()));
   const totalDone = Array.from(done.values()).reduce((a, b) => a + b, 0);
-  const totalPrescribed = Array.from(prescribed.values()).reduce((a, b) => a + b, 0);
   const totalTonnage = Array.from(tonnage.values()).reduce((a, b) => a + b, 0);
 
   const prs = Array.from(bestByExercise.entries())

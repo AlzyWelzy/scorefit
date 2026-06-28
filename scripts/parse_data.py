@@ -136,16 +136,20 @@ guidebook = {"intro": intro_gb, "sections": guide_sections}
 appendix_text = "\n".join(lines[appendix:]).strip()
 
 # ---- write files ----
-def write(name, obj):
+def write(name, obj, satisfies=None):
     with open(os.path.join(OUT, name), "w", encoding="utf-8") as f:
         f.write("// AUTO-GENERATED from source markdown. Do not edit by hand.\n")
+        # Program data is validated against its shared interface at definition time
+        # (compile-time shape check); other files stay `as const`.
+        if satisfies:
+            f.write(f'import type {{ {satisfies} }} from "@/lib/programTypes";\n\n')
         tsname = name.replace(".ts", "")
         f.write(f"export const {tsname} = ")
         json.dump(obj, f, ensure_ascii=False, indent=2)
-        f.write(" as const;\n")
+        f.write(f" satisfies {satisfies};\n" if satisfies else " as const;\n")
 
-write("beginner.ts", beginner)
-write("intermediate.ts", intermediate)
+write("beginner.ts", beginner, satisfies="Program")
+write("intermediate.ts", intermediate, satisfies="Program")
 write("exerciseLibrary.ts", library_list)
 write("guidebook.ts", guidebook)
 write("appendix.ts", {"text": appendix_text})

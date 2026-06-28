@@ -11,6 +11,7 @@ import {
 import { issueToken, verifyToken, consumeToken, type VerifyResult } from "@/db/tokens";
 import { sendVerificationCode } from "@/lib/mailer";
 import { rateLimit, clientIp, sameOrigin } from "@/lib/rateLimit";
+import { captureException } from "@/lib/observability";
 
 export const runtime = "nodejs";
 
@@ -62,7 +63,7 @@ export async function POST(req: Request) {
           return NextResponse.json({ error: "That email is no longer available." }, { status: 409 });
         }
         // Transient failure — do NOT consume the token, so the same code can retry.
-        console.error("[verify-email] applyPendingEmail failed", err);
+        await captureException(err, { where: "verify-email.applyPendingEmail" });
         return NextResponse.json({ error: "Could not update your email. Try again." }, { status: 500 });
       }
       if (!applied) {
@@ -141,7 +142,7 @@ export async function PUT() {
       await sendVerificationCode(target, code);
     }
   } catch (err) {
-    console.error("[verify-email] resend failed", err);
+    await captureException(err, { where: "verify-email.resend" });
     return NextResponse.json({ error: "Could not send the email. Try again later." }, { status: 502 });
   }
   return NextResponse.json({ ok: true }, { status: 200 });

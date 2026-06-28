@@ -34,10 +34,31 @@ function solve(target: number, bar: number, plates: number[]) {
   return { ok: true as const, perSide: Math.round(perSide * 100) / 100, used };
 }
 
-export function PlateCalculator() {
+export function PlateCalculator({
+  seedWeight,
+  seedUnit,
+  seedNonce,
+}: {
+  seedWeight?: number | null;
+  seedUnit?: Unit;
+  seedNonce?: number;
+} = {}) {
   const [unit, setUnit] = useState<Unit>("kg");
   const [bar, setBar] = useState(BAR.kg[0]);
   const [target, setTarget] = useState<string>("");
+
+  // Seed from the logger: when a new weight is entered there (a fresh nonce), mirror it
+  // (and the logging unit) here so the loadout updates as the user types. Adjusting state
+  // during render on a changed prop is the recommended pattern over an effect.
+  const [lastSeed, setLastSeed] = useState(seedNonce);
+  if (seedNonce !== lastSeed) {
+    setLastSeed(seedNonce);
+    if (seedUnit) {
+      setUnit(seedUnit);
+      setBar(BAR[seedUnit][0]);
+    }
+    if (seedWeight != null && Number.isFinite(seedWeight)) setTarget(String(seedWeight));
+  }
 
   const num = parseFloat(target);
   const result = useMemo(() => {

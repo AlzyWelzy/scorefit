@@ -82,24 +82,40 @@ function Board({ title, hint, rows, suffix = "" }: { title: string; hint: string
         </p>
       ) : (
         <div className="overflow-hidden rounded-card border border-line">
-          {rows.map((r) => (
-            <div
-              key={r.rank}
-              className={`flex items-center justify-between gap-3 border-b border-line px-4 py-2.5 last:border-0 ${r.isYou ? "bg-accent/10" : ""}`}
-            >
-              <span className="flex items-center gap-3">
-                <span className="num w-6 text-right text-xs text-faint">{r.rank}</span>
-                <span className={`text-sm ${r.isYou ? "font-medium text-fg" : "text-muted"}`}>
-                  {r.name}
-                  {r.isYou && <span className="ml-1.5 text-[11px] text-accent">you</span>}
-                </span>
-              </span>
-              <span className="num text-xs text-data">
-                {r.value}
-                {suffix}
-              </span>
-            </div>
-          ))}
+          <table className="w-full table-fixed">
+            <caption className="sr-only">
+              {title} leaderboard — {hint}, ranked from highest to lowest
+            </caption>
+            <thead className="sr-only">
+              <tr>
+                <th scope="col">Rank</th>
+                <th scope="col">Lifter</th>
+                <th scope="col">{title}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr
+                  key={r.rank}
+                  className={`border-b border-line last:border-0 ${r.isYou ? "bg-accent/10" : ""}`}
+                >
+                  <td className="num w-6 py-2.5 pl-4 text-right align-middle text-xs text-faint">
+                    {r.rank}
+                  </td>
+                  <td
+                    className={`px-3 py-2.5 align-middle text-sm ${r.isYou ? "font-medium text-fg" : "text-muted"}`}
+                  >
+                    {r.name}
+                    {r.isYou && <span className="ml-1.5 text-[11px] text-accent">you</span>}
+                  </td>
+                  <td className="num py-2.5 pr-4 text-right align-middle text-xs text-data">
+                    {r.value}
+                    {suffix}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

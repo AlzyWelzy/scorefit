@@ -16,11 +16,11 @@ export function isProgramId(v: string): v is ProgramId {
   return (PROGRAM_IDS as readonly string[]).includes(v);
 }
 
-// The generated JSON is a structural superset of Program, so this cast is sound and
-// gives every consumer a real typed shape (no more regex shape-sniffing).
+// The generated data files validate against Program at their own definition via
+// `satisfies Program`, so they're assignable here with no cast (no more shape-sniffing).
 export const PROGRAMS: Record<ProgramId, Program> = {
-  beginner: beginner as unknown as Program,
-  intermediate: intermediate as unknown as Program,
+  beginner,
+  intermediate,
 };
 
 export const PROGRAM_META: Record<
@@ -91,6 +91,11 @@ export type WeekCoordinateExercise = {
   sets: number;
   reps: string | null;
   lastRPE: string | null;
+  /** Prescribed rest between sets, free text e.g. "3-5 min" (seeds the rest timer). */
+  rest: string | null;
+  /** Prescribed substitution names (free text), for the logger's swap menu. */
+  sub1: string | null;
+  sub2: string | null;
 };
 export type WeekCoordinateDay = { slug: string; title: string; exercises: WeekCoordinateExercise[] };
 export type WeekCoordinates = {
@@ -124,12 +129,61 @@ export function buildWeekCoordinates(programId: ProgramId, weekNumber: number): 
       const sets = parseSets(ex.workingSets);
       prescribedSets += sets;
       for (let i = 1; i <= sets; i++) coordKeys.add(`${slug}|${ex.slug}|${i}`);
-      return { slug: ex.slug, name: ex.name, sets, reps: ex.reps ?? null, lastRPE: ex.lastRPE ?? null };
+      return {
+        slug: ex.slug,
+        name: ex.name,
+        sets,
+        reps: ex.reps ?? null,
+        lastRPE: ex.lastRPE ?? null,
+        rest: ex.rest ?? null,
+        sub1: ex.sub1 ?? null,
+        sub2: ex.sub2 ?? null,
+      };
     });
     days.push({ slug, title: d.title, exercises });
   });
 
   return { days, prescribedSets, coordKeys };
+}
+
+export type ProgramPrescription = {
+  /** prescribed working sets per week number */
+  prescribed: Map<number, number>;
+  /** `${week}|${daySlug}|${exerciseSlug}|${setIndex}` for every prescribed set */
+  validCoords: Set<string>;
+  /** exercise slug → display name */
+  nameBySlug: Map<string, string>;
+  /** sum of prescribed working sets across the whole program */
+  totalPrescribed: number;
+};
+
+const prescriptionCache = new Map<ProgramId, ProgramPrescription>();
+
+/**
+ * The static prescription view of a whole program (prescribed counts, the valid
+ * coordinate set, and the slug→name map), memoized per ProgramId at module scope.
+ * /progress used to rebuild this (buildWeekCoordinates × every week) on every request;
+ * the program data never changes at runtime, so compute it once and reuse.
+ */
+export function getProgramPrescription(program: ProgramId): ProgramPrescription {
+  const hit = prescriptionCache.get(program);
+  if (hit) return hit;
+
+  const prescribed = new Map<number, number>();
+  const validCoords = new Set<string>();
+  const nameBySlug = new Map<string, string>();
+  let totalPrescribed = 0;
+  for (const w of getProgramOrThrow(program).weeks) {
+    const wc = buildWeekCoordinates(program, w.number);
+    prescribed.set(w.number, wc.prescribedSets);
+    totalPrescribed += wc.prescribedSets;
+    for (const key of wc.coordKeys) validCoords.add(`${w.number}|${key}`);
+    for (const d of wc.days) for (const ex of d.exercises) nameBySlug.set(ex.slug, ex.name);
+  }
+
+  const out = { prescribed, validCoords, nameBySlug, totalPrescribed };
+  prescriptionCache.set(program, out);
+  return out;
 }
 
 // slug → entry lookup maps, built once at module load instead of a linear
@@ -144,6 +198,17 @@ const guideBySlug = new Map<
 
 export function getExercise(slug: string) {
   return exerciseBySlug.get(slug) ?? null;
+}
+
+// Normalized exercise-name → slug index, so a free-text substitution ("Pec Deck")
+// can be resolved to a real library exercise (a valid swap target).
+const normName = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "");
+const slugByNormName = new Map<string, string>(exerciseLibrary.map((e) => [normName(e.name), e.slug]));
+
+/** Resolve an exercise name or slug to a known library slug, or null if unknown. */
+export function resolveExerciseSlug(nameOrSlug: string): string | null {
+  if (exerciseBySlug.has(nameOrSlug)) return nameOrSlug;
+  return slugByNormName.get(normName(nameOrSlug)) ?? null;
 }
 
 export function getGuideSection(slug: string) {

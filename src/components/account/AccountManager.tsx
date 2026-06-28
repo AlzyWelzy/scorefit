@@ -42,8 +42,38 @@ export function AccountManager({
       <TwoFactorSection />
       <GamificationSection optOut={gamificationOptOut} />
       <PasswordSection />
+      <ExportSection />
       <DangerSection />
     </div>
+  );
+}
+
+/* ------------------------------------------------------------------- Export */
+
+function ExportSection() {
+  return (
+    <section className="glass p-5">
+      <h2 className="eyebrow-accent">Export your data</h2>
+      <p className="mt-3 text-sm text-muted">
+        Download all your training data and account info.
+      </p>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <a
+          href="/api/logs/export"
+          download
+          className="rounded-lg border border-line bg-bg px-4 py-2 text-sm font-semibold text-fg transition-all hover:border-accent/60 hover:text-accent"
+        >
+          Download CSV
+        </a>
+        <a
+          href="/api/logs/export?format=json"
+          download
+          className="rounded-lg border border-line bg-bg px-4 py-2 text-sm font-semibold text-fg transition-all hover:border-accent/60 hover:text-accent"
+        >
+          Download JSON
+        </a>
+      </div>
+    </section>
   );
 }
 

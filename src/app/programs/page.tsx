@@ -1,9 +1,10 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { ArrowUpRight } from "lucide-react";
-import { PROGRAM_META } from "@/lib/data";
+import { PROGRAM_META, PROGRAM_IDS } from "@/lib/data";
 import { Reveal, RevealGroup, RevealItem } from "@/components/motion/Reveal";
 import { TodayCardMount } from "@/components/TodayCardMount";
+import { itemList, ldJson } from "@/lib/structuredData";
 
 export const metadata: Metadata = {
   title: "Programs",
@@ -11,8 +12,14 @@ export const metadata: Metadata = {
 };
 
 export default function ProgramsPage() {
+  const ld = itemList({
+    name: "ScoreFit programs",
+    items: PROGRAM_IDS.map((id) => ({ name: PROGRAM_META[id].name, path: `/programs/${id}` })),
+  });
+
   return (
     <div className="mx-auto max-w-6xl px-5 py-16">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(ld) }} />
       <Reveal>
         <span className="eyebrow">Train</span>
         <h1 className="display-tight mt-2.5 font-display text-4xl font-bold tracking-tight sm:text-5xl">

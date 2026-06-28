@@ -1,5 +1,6 @@
 import "server-only";
 import nodemailer, { type Transporter } from "nodemailer";
+import { captureException } from "@/lib/observability";
 
 // Generic SMTP transport configured from env. Works with any provider
 // (Gmail app password, Mailgun, SES, Postmark, Resend SMTP, …).
@@ -53,11 +54,13 @@ export async function sendMail(opts: { to: string; subject: string; html: string
     });
     console.log(`[mailer] sent to ${opts.to} (${info.messageId})`);
   } catch (err) {
-    // Re-throw so the caller can decide; but log the real SMTP error first.
+    // Re-throw so the caller can decide; but forward the real SMTP error first so
+    // transactional-email failures are visible in observability (not just console).
     const e = err as { code?: string; responseCode?: number; command?: string; message?: string };
-    console.error(
-      `[mailer] send FAILED to ${opts.to}: code=${e.code} responseCode=${e.responseCode} command=${e.command} — ${e.message}`,
-    );
+    await captureException(err, {
+      where: "mailer.send",
+      extra: { to: opts.to, subject: opts.subject, code: e.code, responseCode: e.responseCode, command: e.command },
+    });
     throw err;
   }
 }

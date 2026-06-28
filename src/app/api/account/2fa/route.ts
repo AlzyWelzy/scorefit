@@ -6,6 +6,7 @@ import { getUserById } from "@/db/users";
 import { issueToken } from "@/db/tokens";
 import { sendMail } from "@/lib/mailer";
 import { sameOrigin, rateLimit, clientIp } from "@/lib/rateLimit";
+import { captureException } from "@/lib/observability";
 import { generateTotpSecret, encryptSecret, otpauthUri } from "@/lib/totp";
 import { setTotpSecret, countBackupCodes } from "@/db/twoFactor";
 
@@ -63,7 +64,7 @@ export async function POST(req: Request) {
       html: `<p>Your ScoreFit confirmation code is <b style="font-size:20px;letter-spacing:4px">${code}</b>. It expires in 10 minutes.</p>`,
     });
   } catch (err) {
-    console.error("[2fa enable email] send failed", err);
+    await captureException(err, { where: "2fa.enableEmail" });
     return NextResponse.json({ error: "Could not send the code." }, { status: 502 });
   }
   return NextResponse.json({ method: "email" });

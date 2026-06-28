@@ -21,6 +21,7 @@ export const config = {
     "/verify-email/:path*",
     "/onboarding/:path*",
     "/feed/:path*",
+    "/groups/:path*",
     "/admin/:path*",
   ],
 };

@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { buildWeekCoordinates, getProgramOrThrow, isProgramId, PROGRAM_META, type ProgramId } from "@/lib/data";
+import { buildWeekCoordinates, getProgramOrThrow, isProgramId, PROGRAM_META, resolveExerciseSlug, type ProgramId } from "@/lib/data";
 import { getLogsForWeek, getPreviousLoads } from "@/db/logs";
+import { getSwaps } from "@/db/swaps";
 import { getUserById } from "@/db/users";
 import { Logger, type LogDay, type InitialLog, type PrevLoad } from "@/components/logger/Logger";
 
@@ -36,14 +37,32 @@ export default async function LogPage({
   const weekReq = parseInt(sp.week ?? String(defaultWeek), 10);
   const week = Number.isFinite(weekReq) ? Math.min(Math.max(weekReq, 1), maxWeek) : 1;
 
-  // Shares the coordinate space (unique slugs + set counts) with /progress and the
-  // session roll-up via buildWeekCoordinates.
-  const days: LogDay[] = buildWeekCoordinates(program, week).days;
-
-  const [rows, prevLoads] = await Promise.all([
+  const [rows, prevLoads, swaps] = await Promise.all([
     getLogsForWeek(session.user.id, program, week),
     getPreviousLoads(session.user.id, program, week),
+    getSwaps(session.user.id, program),
   ]);
+
+  // Shares the coordinate space (unique slugs + set counts) with /progress and the
+  // session roll-up via buildWeekCoordinates; enriched with the user's recorded
+  // substitutions (resolved to real library exercises) for the logger's swap menu.
+  const days: LogDay[] = buildWeekCoordinates(program, week).days.map((d) => ({
+    slug: d.slug,
+    title: d.title,
+    exercises: d.exercises.map((ex) => ({
+      slug: ex.slug,
+      name: ex.name,
+      sets: ex.sets,
+      reps: ex.reps,
+      lastRPE: ex.lastRPE,
+      rest: ex.rest,
+      subs: [ex.sub1, ex.sub2]
+        .filter((s): s is string => !!s)
+        .map((name) => ({ name, slug: resolveExerciseSlug(name) }))
+        .filter((o): o is { name: string; slug: string } => o.slug !== null && o.slug !== ex.slug),
+      swappedTo: swaps[`${d.slug}|${ex.slug}`] ?? null,
+    })),
+  }));
   const initialLogs: InitialLog[] = rows.map((r) => ({
     daySlug: r.daySlug,
     exerciseSlug: r.exerciseSlug,

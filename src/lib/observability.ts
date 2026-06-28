@@ -3,12 +3,12 @@ import "server-only";
 // Observability seam. Server errors on serverless vanish if they only hit console.*
 // in a request that already returned; this gives one place to forward them.
 //
-// Today it emits STRUCTURED JSON (greppable in Vercel/any log drain) and, IF the
-// optional `@sentry/nextjs` package is installed AND SENTRY_DSN is set, forwards to
-// Sentry too. Wiring real Sentry is then just:
-//   1. `npm i @sentry/nextjs`
-//   2. set SENTRY_DSN (+ run `npx @sentry/wizard` for source maps, optional)
-//   3. add `Sentry.init({ dsn: process.env.SENTRY_DSN })` in instrumentation.ts
+// Today it emits STRUCTURED JSON (greppable in Vercel/any log drain) and, when
+// SENTRY_DSN is set, also forwards to the (now-installed) `@sentry/nextjs`. The
+// import stays dynamic + guarded so a missing DSN means zero Sentry overhead.
+// To finish activating Sentry in production:
+//   1. set SENTRY_DSN (+ run `npx @sentry/wizard` for source maps, optional)
+//   2. add `Sentry.init({ dsn: process.env.SENTRY_DSN })` in instrumentation.ts
 // No call sites change — they already go through captureException().
 
 type Extra = Record<string, unknown>;
@@ -24,9 +24,8 @@ async function getSentry() {
     return sentry;
   }
   try {
-    // @ts-expect-error — optional dependency; types/module may be absent until installed.
     const mod = await import("@sentry/nextjs");
-    sentry = mod;
+    sentry = mod as unknown as { captureException: (e: unknown, hint?: unknown) => void };
   } catch {
     sentry = null;
   }

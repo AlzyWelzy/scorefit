@@ -7,6 +7,7 @@ import { ExerciseRow } from "@/components/ExerciseCard";
 import { PrintButton } from "@/components/PrintButton";
 import { DayNav } from "@/components/motion/DayNav";
 import { Reveal } from "@/components/motion/Reveal";
+import { breadcrumbs, ldJson } from "@/lib/structuredData";
 
 export function generateStaticParams() {
   const out: { program: string; week: string }[] = [];
@@ -50,8 +51,16 @@ export default async function WeekPage({
   const next = weekNum < lastWeek ? weekNum + 1 : null;
   const navDays = w.days.map((d) => ({ slug: d.slug, title: d.title.split(" ")[0] ?? d.title, count: d.exercises.length }));
 
+  const ld = breadcrumbs([
+    { name: "Home", path: "/" },
+    { name: "Programs", path: "/programs" },
+    { name: p.name, path: `/programs/${program}` },
+    { name: `Week ${weekNum}`, path: `/programs/${program}/week/${weekNum}` },
+  ]);
+
   return (
     <div className="mx-auto max-w-6xl px-5 py-12">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(ld) }} />
       <Reveal>
         <Link href={`/programs/${program}`} className="eyebrow-accent hover:text-fg">← {p.name}</Link>
         <div className="mt-3 flex flex-wrap items-baseline gap-3">

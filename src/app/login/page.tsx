@@ -3,7 +3,10 @@ import { LoginForm } from "@/components/auth/LoginForm";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { safeInternalPath } from "@/lib/safeRedirect";
 
-export const metadata: Metadata = { title: "Sign in" };
+export const metadata: Metadata = {
+  title: "Sign in",
+  robots: { index: false, follow: false },
+};
 
 export default async function LoginPage({
   searchParams,

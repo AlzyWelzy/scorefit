@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { ArrowUpRight } from "lucide-react";
 import { guidebook } from "@/lib/data";
 import { Reveal, RevealGroup, RevealItem } from "@/components/motion/Reveal";
+import { itemList, ldJson } from "@/lib/structuredData";
 
 export const metadata: Metadata = {
   title: "Guidebook",
@@ -11,8 +12,14 @@ export const metadata: Metadata = {
 };
 
 export default function GuidebookPage() {
+  const ld = itemList({
+    name: "ScoreFit guidebook",
+    items: guidebook.sections.map((s) => ({ name: s.title, path: `/guidebook/${s.slug}` })),
+  });
+
   return (
     <div className="mx-auto max-w-4xl px-5 py-16">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(ld) }} />
       <Reveal>
         <span className="eyebrow">Learn</span>
         <h1 className="mt-2.5 font-display text-4xl font-bold tracking-tight sm:text-5xl">The Guidebook</h1>

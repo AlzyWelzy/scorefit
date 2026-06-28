@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Check, CheckCheck, Loader2, CloudOff, RotateCw, Trophy, Sparkles, TrendingUp, SlidersHorizontal } from "lucide-react";
+import { Check, CheckCheck, Loader2, CloudOff, RotateCw, Trophy, Sparkles, TrendingUp, SlidersHorizontal, Repeat2 } from "lucide-react";
 import type { ProgramId } from "@/lib/data";
 import { saveSet, flushOutbox, pendingCount, type SaveState, type SetPayload, type GameResult } from "@/lib/logOutbox";
 import { RestTimer } from "@/components/RestTimer";
@@ -15,6 +15,11 @@ export type LogExercise = {
   sets: number;
   reps: string | null;
   lastRPE: string | null;
+  rest: string | null;
+  /** Substitution options resolved to real library exercises (for the swap menu). */
+  subs: { slug: string; name: string }[];
+  /** Currently-recorded substitution slug for this exercise, or null = prescribed. */
+  swappedTo: string | null;
 };
 export type LogDay = { slug: string; title: string; exercises: LogExercise[] };
 export type InitialLog = {
@@ -36,6 +41,18 @@ function parseTargetRpe(s: string | null): number | null {
   if (!s) return null;
   const m = s.match(/(\d+(?:\.\d+)?)/);
   return m ? Number(m[1]) : null;
+}
+
+// Parse a prescribed rest string ("3-5 min", "90 sec", "2 min") into seconds for the
+// rest timer, using the lower bound of a range. Returns null if unparseable.
+function parseRestSeconds(s: string | null): number | null {
+  if (!s) return null;
+  const m = s.match(/(\d+(?:\.\d+)?)/);
+  if (!m) return null;
+  const n = Number(m[1]);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const isMin = /min/i.test(s) || (!/sec|\bs\b/i.test(s) && n <= 10);
+  return Math.round(isMin ? n * 60 : n);
 }
 
 // Pick the day to open on: match today's weekday name against day titles (e.g. a
@@ -93,6 +110,47 @@ export function Logger({
   const [rpeOpen, setRpeOpen] = useState<Record<string, boolean>>({});
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const latest = useRef<Record<string, SetPayload>>({});
+
+  // Per-coordinate prescribed rest, so completing a set can seed the rest timer with
+  // the exercise's actual prescription instead of a fixed preset.
+  const restByCoord = useMemo(() => {
+    const m: Record<string, string | null> = {};
+    for (const d of days) for (const e of d.exercises) m[`${d.slug}|${e.slug}`] = e.rest;
+    return m;
+  }, [days]);
+  // The most recently entered set weight, mirrored into the plate calculator.
+  const [plateSeed, setPlateSeed] = useState<{ weight: number; nonce: number } | null>(null);
+  const plateNonce = useRef(0);
+
+  // Exercise substitutions. The LOG coordinate stays the prescribed exercise (so the
+  // prescribed/tonnage/streak accounting is unaffected and prev-loads carry forward in
+  // the same slot); the swap only changes what's displayed and is remembered server-side.
+  const [swaps, setSwaps] = useState<Record<string, string>>(() => {
+    const m: Record<string, string> = {};
+    for (const d of days) for (const e of d.exercises) if (e.swappedTo) m[`${d.slug}|${e.slug}`] = e.swappedTo;
+    return m;
+  });
+  const [swapOpen, setSwapOpen] = useState<Record<string, boolean>>({});
+  const chooseSwap = useCallback(
+    (daySlug: string, ex: LogExercise, subSlug: string | null) => {
+      const key = `${daySlug}|${ex.slug}`;
+      setSwaps((s) => {
+        const next = { ...s };
+        if (subSlug && subSlug !== ex.slug) next[key] = subSlug;
+        else delete next[key];
+        return next;
+      });
+      setSwapOpen((s) => ({ ...s, [key]: false }));
+      // Persist (best-effort; the UI already reflects the choice). subSlug === original
+      // clears the swap server-side.
+      void fetch("/api/swaps", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ program, daySlug, originalSlug: ex.slug, subSlug: subSlug ?? ex.slug }),
+      }).catch(() => {});
+    },
+    [program],
+  );
 
   // Celebratory toasts for game events (level-ups, achievements, PRs) the API returns
   // on a live save. Auto-dismiss; announced via aria-live for screen readers.
@@ -182,17 +240,35 @@ export function Logger({
     } else {
       timers.current[k] = setTimeout(() => flush(daySlug, ex, i, next), 700);
     }
-    // Auto-start the rest timer the moment a set is newly marked complete.
+    // Seed the plate calculator from the weight being entered (updates as you type).
+    if (patch.weight !== undefined) {
+      const w = Number(patch.weight);
+      if (Number.isFinite(w) && w > 0) setPlateSeed({ weight: w, nonce: (plateNonce.current += 1) });
+    }
+    // Auto-start the rest timer the moment a set is newly marked complete, seeded with
+    // this exercise's prescribed rest when we have it.
     if (patch.completed === true && !prev.completed && typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("scorefit-rest-start"));
+      const seconds = parseRestSeconds(restByCoord[`${daySlug}|${ex}`] ?? null);
+      window.dispatchEvent(new CustomEvent("scorefit-rest-start", { detail: { seconds } }));
     }
   };
 
-  // Jump to today's training day on mount (post-hydration so SSR stays deterministic).
+  // On mount, open the deep-linked day (#daySlug from "Log this day" links) if present,
+  // else today's training day. Post-hydration so SSR stays deterministic.
   useEffect(() => {
-    const today = pickTodaysDay(days);
+    const hash =
+      typeof window !== "undefined" ? decodeURIComponent(window.location.hash.replace(/^#/, "")) : "";
+    const fromHash = hash && days.some((d) => d.slug === hash) ? hash : "";
+    const target = fromHash || pickTodaysDay(days);
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (today) setActiveDay(today);
+    if (target) setActiveDay(target);
+    if (fromHash && typeof document !== "undefined") {
+      // Defer until the selected day renders, then bring it into view.
+      setTimeout(
+        () => document.getElementById(fromHash)?.scrollIntoView({ behavior: "smooth", block: "start" }),
+        50,
+      );
+    }
   }, [days]);
 
   // Online/offline + outbox flush + auth-expiry signalling.
@@ -330,23 +406,54 @@ export function Logger({
       {/* in-gym tools: rest timer (auto-starts on completion) + plate calculator */}
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         <RestTimer />
-        <PlateCalculator />
+        <PlateCalculator seedWeight={plateSeed?.weight ?? null} seedUnit={unit} seedNonce={plateSeed?.nonce} />
       </div>
 
       <div className="mt-8 space-y-10">
         {days.filter((d) => d.slug === activeDay || days.length === 1).map((d, di) => (
-          <section key={`${d.slug}-${di}`}>
+          <section key={`${d.slug}-${di}`} id={d.slug}>
             <h2 className="mb-3 border-b border-line pb-2 font-display text-lg font-semibold">{d.title}</h2>
             <div className="space-y-5">
               {d.exercises.map((ex) => (
                 <div key={ex.slug} className="glass p-4">
                   <div className="mb-3 flex items-baseline justify-between gap-3">
-                    <h3 className="font-display font-semibold text-fg">{ex.name}</h3>
+                    <div className="min-w-0">
+                      <h3 className="truncate font-display font-semibold text-fg">
+                        {swaps[`${d.slug}|${ex.slug}`]
+                          ? ex.subs.find((s) => s.slug === swaps[`${d.slug}|${ex.slug}`])?.name ?? ex.name
+                          : ex.name}
+                      </h3>
+                      {swaps[`${d.slug}|${ex.slug}`] && (
+                        <button
+                          type="button"
+                          onClick={() => chooseSwap(d.slug, ex, null)}
+                          className="mt-0.5 text-[11px] text-faint transition-colors hover:text-muted"
+                        >
+                          ↺ swapped from {ex.name} · reset
+                        </button>
+                      )}
+                    </div>
                     <div className="flex shrink-0 items-center gap-2">
                       <span className="num text-xs text-muted">
                         {ex.sets}×{ex.reps ?? "—"}
                         {ex.lastRPE ? ` @ ${ex.lastRPE.replace("~", "")}` : ""}
                       </span>
+                      {ex.subs.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSwapOpen((s) => ({ ...s, [`${d.slug}|${ex.slug}`]: !s[`${d.slug}|${ex.slug}`] }))
+                          }
+                          aria-expanded={!!swapOpen[`${d.slug}|${ex.slug}`]}
+                          aria-label="Swap exercise"
+                          title="Swap exercise"
+                          className={`inline-flex h-7 w-7 items-center justify-center rounded-md border transition-colors ${
+                            swaps[`${d.slug}|${ex.slug}`] ? "border-data text-data" : "border-line text-faint hover:text-muted"
+                          }`}
+                        >
+                          <Repeat2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => setRpeOpen((s) => ({ ...s, [ex.slug]: !s[ex.slug] }))}
@@ -361,6 +468,25 @@ export function Logger({
                       </button>
                     </div>
                   </div>
+                  {swapOpen[`${d.slug}|${ex.slug}`] && ex.subs.length > 0 && (
+                    <div className="mb-3 flex flex-wrap gap-1.5 rounded-lg border border-line bg-surface-2/50 p-2">
+                      {[{ slug: ex.slug, name: ex.name }, ...ex.subs].map((opt) => {
+                        const active = (swaps[`${d.slug}|${ex.slug}`] ?? ex.slug) === opt.slug;
+                        return (
+                          <button
+                            key={opt.slug}
+                            type="button"
+                            onClick={() => chooseSwap(d.slug, ex, opt.slug === ex.slug ? null : opt.slug)}
+                            className={`rounded-md border px-2.5 py-1 text-xs transition-colors ${
+                              active ? "border-data bg-data/15 text-data" : "border-line text-muted hover:text-fg"
+                            }`}
+                          >
+                            {opt.slug === ex.slug ? `${opt.name} (prescribed)` : opt.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                   <div className="space-y-2">
                     {Array.from({ length: ex.sets }, (_, idx) => {
                       const i = idx + 1;

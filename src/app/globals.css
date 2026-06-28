@@ -20,7 +20,7 @@
   /* Foreground — slightly brighter for crisper contrast on the darker base. */
   --color-fg: #f1f4f7;
   --color-muted: #a3acb6;
-  --color-faint: #6f7984;
+  --color-faint: #868f99; /* AA-safe on bg/surface: 5.73:1 vs #0e1217, still muted vs #a3acb6 */
 
   /* Ember — same recognizable identity, accent-2 pushed a touch hotter. */
   --color-accent: #ff6a3d;
@@ -442,7 +442,7 @@ body {
   /* Easier on the eyes for long reads — a hair softer than the chrome's #f1f4f7. */
   --color-fg: #e9edf1;
   --color-muted: #9aa4ae;
-  --color-faint: #6b757f;
+  --color-faint: #868f99; /* AA-safe on bg/surface: 5.68:1 vs #0f1318, still muted vs #9aa4ae */
 
   --color-prose: #d6dbe1;
 
@@ -466,7 +466,7 @@ html[data-theme="light"] {
 
   --color-fg: #16191c;
   --color-muted: #565c63;
-  --color-faint: #767c84; /* darker than editorial's faint to hold AA on white */
+  --color-faint: #686f77; /* darkened to hold AA: 4.83:1 vs #faf9f7, still muted vs #565c63 */
 
   --color-accent: #d24a22;
   --color-accent-2: #e8552b;

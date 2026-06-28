@@ -1,4 +1,6 @@
 // AUTO-GENERATED from source markdown. Do not edit by hand.
+import type { Program } from "@/lib/programTypes";
+
 export const intermediate = {
   "id": "intermediate",
   "name": "Intermediate / Advanced Program",
@@ -6569,4 +6571,4 @@ export const intermediate = {
       ]
     }
   ]
-} as const;
+} satisfies Program;
