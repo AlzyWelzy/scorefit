@@ -1,12 +1,20 @@
 import "server-only";
-import { createHash, randomBytes } from "crypto";
-import { and, eq, sql } from "drizzle-orm";
+import { createHash, randomBytes, timingSafeEqual } from "crypto";
+import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { users, backupCodes } from "@/db/schema";
 
 export type TwoFactorMethod = "email" | "totp";
 
 const hash = (code: string) => createHash("sha256").update(code.toUpperCase().replace(/\s|-/g, "")).digest("hex");
+
+/** Constant-time compare of two SHA-256 hex digests (always 64 chars here). */
+function hashesEqual(a: string, b: string): boolean {
+  const ba = Buffer.from(a, "hex");
+  const bb = Buffer.from(b, "hex");
+  if (ba.length !== bb.length) return false;
+  return timingSafeEqual(ba, bb);
+}
 
 // ---- account-level 2FA state ------------------------------------------
 export async function setTotpSecret(userId: string, encryptedSecret: string): Promise<void> {
@@ -72,13 +80,19 @@ export async function countBackupCodes(userId: string): Promise<number> {
 /** Consume a backup code if it matches an unused one. Returns true on success. */
 export async function consumeBackupCode(userId: string, code: string): Promise<boolean> {
   const h = hash(code);
+  // Fetch the user's stored hashes and compare in-app with a constant-time check rather
+  // than a DB-side equality match, so neither whether a code matched nor which one is
+  // distinguishable by timing. The full set is scanned regardless of an early match to
+  // keep the work uniform.
   const rows = await db
-    .select({ id: backupCodes.id })
+    .select({ id: backupCodes.id, codeHash: backupCodes.codeHash })
     .from(backupCodes)
-    .where(and(eq(backupCodes.userId, userId), eq(backupCodes.codeHash, h)))
-    .limit(1);
-  const row = rows[0];
-  if (!row) return false;
-  await db.delete(backupCodes).where(eq(backupCodes.id, row.id));
+    .where(eq(backupCodes.userId, userId));
+  let matchId: string | null = null;
+  for (const r of rows) {
+    if (hashesEqual(r.codeHash, h) && matchId === null) matchId = r.id;
+  }
+  if (!matchId) return false;
+  await db.delete(backupCodes).where(eq(backupCodes.id, matchId));
   return true;
 }

@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { z } from "zod";
 import { getUserByEmail } from "@/db/users";
 import { issueToken } from "@/db/tokens";
@@ -27,13 +27,17 @@ export async function POST(req: Request) {
 
   const user = await getUserByEmail(parsed.data.email);
   if (user && user.passwordHash) {
-    try {
-      const code = await issueToken(user.id, "password_reset");
-      await sendPasswordResetCode(user.email, code);
-    } catch (err) {
-      await captureException(err, { where: "forgot-password.send" });
-      // Still return ok to avoid leaking which path was taken.
-    }
+    const u = user;
+    // Issue + send out-of-band (after the response) so an existing vs. unknown address
+    // take the same time on the wire — SMTP latency can't leak which path was taken.
+    after(async () => {
+      try {
+        const code = await issueToken(u.id, "password_reset");
+        await sendPasswordResetCode(u.email, code);
+      } catch (err) {
+        await captureException(err, { where: "forgot-password.send" });
+      }
+    });
   }
   return NextResponse.json({ ok: true }, { status: 200 });
 }
