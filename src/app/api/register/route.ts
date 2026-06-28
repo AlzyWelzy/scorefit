@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { db } from "@/db";
@@ -57,15 +57,20 @@ export async function POST(req: Request) {
     .returning({ id: users.id });
 
   // Newly created → send verification code. Already existed → say nothing
-  // different (enumeration-safe), and skip the email.
+  // different (enumeration-safe), and skip the email. The token issue + email send run
+  // out-of-band (after the response) so a new vs. already-registered address take the
+  // same time on the wire — SMTP latency can't be used as an enumeration oracle.
   if (inserted[0]) {
-    try {
-      const code = await issueToken(inserted[0].id, "email_verify");
-      await sendVerificationCode(email, code);
-    } catch (err) {
-      // Don't fail registration if email delivery hiccups; they can resend.
-      await captureException(err, { where: "register.verifyEmail" });
-    }
+    const userId = inserted[0].id;
+    after(async () => {
+      try {
+        const code = await issueToken(userId, "email_verify");
+        await sendVerificationCode(email, code);
+      } catch (err) {
+        // Don't fail registration if email delivery hiccups; they can resend.
+        await captureException(err, { where: "register.verifyEmail" });
+      }
+    });
   }
 
   // Identical response whether or not the email was already registered.
