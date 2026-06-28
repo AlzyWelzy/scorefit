@@ -423,6 +423,9 @@ export const activityEvents = pgTable(
     // Structured payload for rendering (e.g. { exercise, e1rm } or { weeks }). Never free text.
     data: jsonb("data").$type<Record<string, unknown>>(),
     occurredOn: date("occurred_on", { mode: "string" }).notNull(),
+    // Soft-delete for moderation (admin "action" on a report); hidden events drop out
+    // of every feed but stay for audit.
+    hiddenAt: timestamp("hidden_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

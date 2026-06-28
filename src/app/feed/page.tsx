@@ -7,6 +7,7 @@ import { getFeed, type FeedItem } from "@/db/social";
 import { getExercise } from "@/lib/data";
 import { featureEnabledFor } from "@/lib/flags";
 import { KudosButton } from "@/components/social/KudosButton";
+import { ReportDialog } from "@/components/social/ReportDialog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -77,9 +78,12 @@ export default async function FeedPage() {
                 </p>
                 <KudosButton eventId={item.id} initialCount={item.kudos} initialMine={item.youKudosed} />
               </div>
-              <time className="num mt-1 block text-[11px] text-faint" dateTime={item.occurredOn}>
-                {item.occurredOn}
-              </time>
+              <div className="mt-1 flex items-center justify-between gap-2">
+                <time className="num block text-[11px] text-faint" dateTime={item.occurredOn}>
+                  {item.occurredOn}
+                </time>
+                <ReportDialog targetType="activity_event" targetId={item.id} reportedUserId={item.userId} />
+              </div>
             </li>
           ))}
         </ul>

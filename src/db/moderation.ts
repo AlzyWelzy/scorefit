@@ -110,6 +110,67 @@ export async function openReportCount(): Promise<number> {
   return row?.n ?? 0;
 }
 
+/** The report's target (for content-hiding on "action"). Null if it no longer exists. */
+export async function getReportById(
+  reportId: string,
+): Promise<{ targetType: ReportTargetType; targetId: string; reportedUserId: string | null } | null> {
+  const [row] = await db
+    .select({
+      targetType: reports.targetType,
+      targetId: reports.targetId,
+      reportedUserId: reports.reportedUserId,
+    })
+    .from(reports)
+    .where(eq(reports.id, reportId))
+    .limit(1);
+  return row ?? null;
+}
+
+// ─── User administration ───────────────────────────────────────────────────────
+
+/** Grant or revoke the admin flag. */
+export async function setAdmin(userId: string, isAdmin: boolean): Promise<void> {
+  await db.update(users).set({ isAdmin }).where(eq(users.id, userId));
+}
+
+export type AdminUserRow = {
+  id: string;
+  email: string;
+  displayName: string | null;
+  isAdmin: boolean;
+  suspended: boolean;
+  gamificationOptOut: boolean;
+  createdAt: Date;
+};
+
+/** Search users by email or display name (case-insensitive substring), newest first. */
+export async function searchUsers(query: string, limit = 25): Promise<AdminUserRow[]> {
+  const q = `%${query.trim().toLowerCase()}%`;
+  const rows = await db
+    .select({
+      id: users.id,
+      email: users.email,
+      displayName: users.displayName,
+      isAdmin: users.isAdmin,
+      suspendedSocialAt: users.suspendedSocialAt,
+      gamificationOptOut: users.gamificationOptOut,
+      createdAt: users.createdAt,
+    })
+    .from(users)
+    .where(sql`lower(${users.email}) like ${q} or lower(coalesce(${users.displayName}, '')) like ${q}`)
+    .orderBy(desc(users.createdAt))
+    .limit(limit);
+  return rows.map((r) => ({
+    id: r.id,
+    email: r.email,
+    displayName: r.displayName,
+    isAdmin: r.isAdmin,
+    suspended: !!r.suspendedSocialAt,
+    gamificationOptOut: r.gamificationOptOut,
+    createdAt: r.createdAt,
+  }));
+}
+
 /** Resolve a report (action or dismiss), stamping who/when. No-op if already resolved. */
 export async function resolveReport(
   reportId: string,

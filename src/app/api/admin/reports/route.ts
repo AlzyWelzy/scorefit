@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
-import { isUserAdmin, resolveReport, setSocialSuspension } from "@/db/moderation";
+import { isUserAdmin, resolveReport, setSocialSuspension, getReportById } from "@/db/moderation";
+import { hideActivityEvent } from "@/db/social";
+import { captureException } from "@/lib/observability";
 import { sameOrigin } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
@@ -30,9 +32,24 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
   }
 
+  const report = await getReportById(parsed.data.reportId);
+  if (!report) return NextResponse.json({ error: "Report not found" }, { status: 404 });
+
   await resolveReport(parsed.data.reportId, session.user.id, parsed.data.outcome);
-  if (parsed.data.outcome === "actioned" && parsed.data.suspendUserId) {
-    await setSocialSuspension(parsed.data.suspendUserId, true);
+
+  if (parsed.data.outcome === "actioned") {
+    // Take down the offending content itself (soft-delete) — currently activity events;
+    // user/display_name targets are handled by the suspension below.
+    if (report.targetType === "activity_event") {
+      try {
+        await hideActivityEvent(report.targetId);
+      } catch (err) {
+        await captureException(err, { where: "admin.hideContent", extra: { reportId: parsed.data.reportId } });
+      }
+    }
+    if (parsed.data.suspendUserId) {
+      await setSocialSuspension(parsed.data.suspendUserId, true);
+    }
   }
 
   return NextResponse.json({ ok: true }, { status: 200 });

@@ -150,7 +150,7 @@ export async function getFeed(viewerId: string, limit = 50): Promise<FeedItem[]>
     })
     .from(activityEvents)
     .innerJoin(users, eq(activityEvents.userId, users.id))
-    .where(inArray(activityEvents.userId, visible))
+    .where(and(inArray(activityEvents.userId, visible), isNull(activityEvents.hiddenAt)))
     .orderBy(desc(activityEvents.createdAt))
     .limit(limit);
 
@@ -232,6 +232,11 @@ export async function getComments(eventId: string): Promise<CommentRow[]> {
 /** Soft-delete a comment (moderation / author). */
 export async function hideComment(commentId: string): Promise<void> {
   await db.update(eventComments).set({ hiddenAt: new Date() }).where(eq(eventComments.id, commentId));
+}
+
+/** Soft-delete an activity event (moderation). Hidden events drop out of all feeds. */
+export async function hideActivityEvent(eventId: string): Promise<void> {
+  await db.update(activityEvents).set({ hiddenAt: new Date() }).where(eq(activityEvents.id, eventId));
 }
 
 /** Mutual follows = "friends" (derived). Used for friend-scoped surfaces later. */

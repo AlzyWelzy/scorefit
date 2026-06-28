@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Crown, Shield, User, X, ArrowUp, ArrowDown, Copy, Check } from "lucide-react";
+import { ReportDialog } from "@/components/social/ReportDialog";
 
 type Role = "owner" | "coach" | "member";
 type Member = { userId: string; name: string; role: Role; sharesTrainingWithCoach: boolean };
@@ -159,38 +160,43 @@ export function GroupDetail({
                   <span className="text-[11px] text-data">· sharing</span>
                 )}
               </span>
-              {isOwner && m.userId !== group.ownerId && (
-                <span className="flex shrink-0 items-center gap-1">
-                  {isCoaching &&
-                    (m.role === "coach" ? (
-                      <button
-                        onClick={() => setRole(m.userId, "member")}
-                        disabled={busy}
-                        title="Demote to member"
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-line text-faint hover:text-muted"
-                      >
-                        <ArrowDown className="h-3.5 w-3.5" />
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => setRole(m.userId, "coach")}
-                        disabled={busy}
-                        title="Promote to coach"
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-line text-faint hover:text-data"
-                      >
-                        <ArrowUp className="h-3.5 w-3.5" />
-                      </button>
-                    ))}
-                  <button
-                    onClick={() => removeMember(m.userId)}
-                    disabled={busy}
-                    title="Remove from group"
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-line text-faint hover:text-hard"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </span>
-              )}
+              <span className="flex shrink-0 items-center gap-2">
+                {m.userId !== viewerId && (
+                  <ReportDialog targetType="user" targetId={m.userId} reportedUserId={m.userId} />
+                )}
+                {isOwner && m.userId !== group.ownerId && (
+                  <span className="flex items-center gap-1">
+                    {isCoaching &&
+                      (m.role === "coach" ? (
+                        <button
+                          onClick={() => setRole(m.userId, "member")}
+                          disabled={busy}
+                          title="Demote to member"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-line text-faint hover:text-muted"
+                        >
+                          <ArrowDown className="h-3.5 w-3.5" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setRole(m.userId, "coach")}
+                          disabled={busy}
+                          title="Promote to coach"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-line text-faint hover:text-data"
+                        >
+                          <ArrowUp className="h-3.5 w-3.5" />
+                        </button>
+                      ))}
+                    <button
+                      onClick={() => removeMember(m.userId)}
+                      disabled={busy}
+                      title="Remove from group"
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-line text-faint hover:text-hard"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </span>
+                )}
+              </span>
             </li>
           ))}
         </ul>

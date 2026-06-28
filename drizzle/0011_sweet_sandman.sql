@@ -1,0 +1,1 @@
+ALTER TABLE "activity_events" ADD COLUMN "hidden_at" timestamp with time zone;

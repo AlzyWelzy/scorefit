@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { isUserAdmin, listReports } from "@/db/moderation";
@@ -24,11 +25,17 @@ export default async function AdminPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-5 py-12">
-      <span className="eyebrow">Moderation</span>
+      <div className="flex items-center justify-between gap-3">
+        <span className="eyebrow">Moderation</span>
+        <Link href="/admin/users" className="text-sm text-data hover:underline">
+          Manage users →
+        </Link>
+      </div>
       <h1 className="mt-1 font-display text-3xl font-bold tracking-tight">Report queue</h1>
       <p className="mt-1.5 text-sm text-muted">
-        {open.length} open {open.length === 1 ? "report" : "reports"}. Actioning a user
-        suspends their public/social privileges only — never their training account.
+        {open.length} open {open.length === 1 ? "report" : "reports"}. Actioning a report hides the
+        reported content; the suspend option also removes the user&apos;s public/social privileges —
+        never their training account.
       </p>
       <ReportQueue
         reports={open.map((r) => ({
