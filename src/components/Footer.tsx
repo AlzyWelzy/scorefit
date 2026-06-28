@@ -21,6 +21,10 @@ export function Footer() {
         <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-2 px-5 py-5 text-xs text-faint sm:flex-row sm:items-center">
           <span className="tabular">scorefit.net</span>
           <span>Educational content. Consult a physician before starting any training program.</span>
+          <nav aria-label="Legal" className="flex items-center gap-4">
+            <Link href="/privacy" className="transition-colors hover:text-accent-2">Privacy</Link>
+            <Link href="/terms" className="transition-colors hover:text-accent-2">Terms</Link>
+          </nav>
         </div>
       </div>
     </footer>

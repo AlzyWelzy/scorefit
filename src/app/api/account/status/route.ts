@@ -30,6 +30,7 @@ export async function GET() {
       currentWeek: user.currentWeek,
       // Drives which nav links the client shows: gamified surfaces + flag-gated pages.
       gamificationOptOut: user.gamificationOptOut,
+      isAdmin: user.isAdmin,
       features: {
         leaderboards: featureEnabledFor("leaderboards", user.featureAllowlist),
         social: featureEnabledFor("social", user.featureAllowlist),

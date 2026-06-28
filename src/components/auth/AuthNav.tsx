@@ -15,6 +15,7 @@ import {
   Rss,
   Users,
   Settings,
+  Shield,
 } from "lucide-react";
 
 type Features = { leaderboards: boolean; social: boolean };
@@ -28,6 +29,7 @@ export function AuthNav() {
   const [open, setOpen] = useState(false);
   const [features, setFeatures] = useState<Features>({ leaderboards: false, social: false });
   const [gamificationOptOut, setGamificationOptOut] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -39,6 +41,7 @@ export function AuthNav() {
         if (!alive || !d?.authenticated) return;
         if (d.features) setFeatures(d.features);
         setGamificationOptOut(!!d.gamificationOptOut);
+        setIsAdmin(!!d.isAdmin);
       })
       .catch(() => {});
     return () => {
@@ -122,6 +125,12 @@ export function AuthNav() {
               </Link>
             ))}
             <div className="my-1 h-px bg-line" />
+            {isAdmin && (
+              <Link href="/admin" role="menuitem" onClick={() => setOpen(false)} className={itemClass}>
+                <Shield className="h-4 w-4 shrink-0" />
+                Admin
+              </Link>
+            )}
             <Link href="/account" role="menuitem" onClick={() => setOpen(false)} className={itemClass}>
               <Settings className="h-4 w-4 shrink-0" />
               Account
