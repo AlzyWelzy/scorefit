@@ -3,9 +3,11 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Field } from "@/components/auth/Field";
+import { Turnstile } from "@/components/auth/Turnstile";
 
 export function ForgotPasswordForm() {
   const [email, setEmail] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
@@ -18,7 +20,7 @@ export function ForgotPasswordForm() {
       const res = await fetch("/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, turnstileToken }),
       });
       // Enumeration-safe: a 200 says nothing about whether the account exists.
       if (!res.ok) {
@@ -79,6 +81,7 @@ export function ForgotPasswordForm() {
         autoComplete="email"
         inputMode="email"
       />
+      <Turnstile onToken={setTurnstileToken} />
       <button
         type="submit"
         disabled={busy}

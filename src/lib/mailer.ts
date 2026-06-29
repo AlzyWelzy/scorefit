@@ -98,3 +98,19 @@ export async function sendPasswordResetCode(to: string, code: string) {
     ),
   });
 }
+
+export async function sendWeeklyDigest(to: string, stats: { sessions: number; tonnage: number; unit: string }) {
+  const s = stats.sessions === 1 ? "session" : "sessions";
+  await sendMail({
+    to,
+    subject: "Your ScoreFit week in review",
+    text: `This week you logged ${stats.sessions} ${s} and moved ${stats.tonnage.toLocaleString()} ${stats.unit}. Keep the momentum: https://scorefit.net/dashboard`,
+    html: wrap(
+      "Your week in review",
+      `<p style="color:#9ba4ad">Nice work this week.</p>
+       <p style="font-size:15px;color:#f1f4f7;margin:12px 0"><b>${stats.sessions}</b> ${s} · <b>${stats.tonnage.toLocaleString()} ${stats.unit}</b> moved</p>
+       <p><a href="https://scorefit.net/dashboard" style="color:#ff6a3d">Open your dashboard →</a></p>
+       <p style="color:#6b747c;font-size:12px;margin-top:16px">Manage these emails in your <a href="https://scorefit.net/account/notifications" style="color:#6b747c">notification settings</a>.</p>`,
+    ),
+  });
+}

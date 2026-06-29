@@ -35,6 +35,7 @@ export function AuthNav() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isModerator, setIsModerator] = useState(false);
   const [openReports, setOpenReports] = useState(0);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -49,6 +50,7 @@ export function AuthNav() {
         setIsAdmin(!!d.isAdmin);
         setIsModerator(!!d.isModerator);
         setOpenReports(Number(d.openReports) || 0);
+        setUnreadNotifications(Number(d.unreadNotifications) || 0);
       })
       .catch(() => {});
     return () => {
@@ -109,6 +111,19 @@ export function AuthNav() {
         <span className="hidden sm:inline">Log</span>
       </Link>
 
+      <Link
+        href="/notifications"
+        className="btn-surface relative inline-flex items-center px-2.5 py-2 text-muted hover:text-fg"
+        aria-label={unreadNotifications > 0 ? `Notifications (${unreadNotifications} unread)` : "Notifications"}
+      >
+        <Bell className="h-3.5 w-3.5" />
+        {unreadNotifications > 0 && (
+          <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[9px] font-bold text-bg">
+            {unreadNotifications > 9 ? "9+" : unreadNotifications}
+          </span>
+        )}
+      </Link>
+
       <div className="relative" ref={ref}>
         <button
           onClick={() => setOpen((v) => !v)}
@@ -149,7 +164,7 @@ export function AuthNav() {
             )}
             <Link href="/account/notifications" role="menuitem" onClick={() => setOpen(false)} className={itemClass}>
               <Bell className="h-4 w-4 shrink-0" />
-              Notifications
+              Notification settings
             </Link>
             <Link href="/account/security" role="menuitem" onClick={() => setOpen(false)} className={itemClass}>
               <KeyRound className="h-4 w-4 shrink-0" />

@@ -4,11 +4,12 @@ import { getUserByEmail } from "@/db/users";
 import { issueToken } from "@/db/tokens";
 import { sendPasswordResetCode } from "@/lib/mailer";
 import { rateLimit, clientIp, sameOrigin } from "@/lib/rateLimit";
+import { verifyTurnstile } from "@/lib/turnstile";
 import { captureException } from "@/lib/observability";
 
 export const runtime = "nodejs";
 
-const schema = z.object({ email: z.email() });
+const schema = z.object({ email: z.email(), turnstileToken: z.string().optional() });
 
 // POST { email } → if the account exists, email a reset code. Always returns
 // the same response (enumeration-safe).
@@ -24,6 +25,10 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Enter a valid email." }, { status: 400 });
+
+  if (!(await verifyTurnstile(parsed.data.turnstileToken, ip))) {
+    return NextResponse.json({ error: "Verification failed. Please try again." }, { status: 403 });
+  }
 
   const user = await getUserByEmail(parsed.data.email);
   if (user && user.passwordHash) {

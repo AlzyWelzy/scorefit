@@ -2,6 +2,7 @@ import "server-only";
 import { and, asc, desc, eq, inArray, isNull, not, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { follows, blocks, activityEvents, reactions, eventComments, users, userGameProfile, type ActivityEvent } from "@/db/schema";
+import { createNotification } from "@/db/inbox";
 
 export type ActivityKind = ActivityEvent["kind"];
 
@@ -11,7 +12,12 @@ export type ActivityKind = ActivityEvent["kind"];
 export async function follow(followerId: string, followeeId: string): Promise<void> {
   if (followerId === followeeId) return;
   if (await eitherBlocks(followerId, followeeId)) return;
-  await db.insert(follows).values({ followerId, followeeId }).onConflictDoNothing();
+  const inserted = await db
+    .insert(follows)
+    .values({ followerId, followeeId })
+    .onConflictDoNothing()
+    .returning({ followerId: follows.followerId });
+  if (inserted.length) await createNotification(followeeId, "new_follower", followerId);
 }
 
 export async function unfollow(followerId: string, followeeId: string): Promise<void> {
@@ -189,6 +195,7 @@ export async function toggleKudos(userId: string, eventId: string): Promise<{ ku
     return { kudosed: false };
   }
   await db.insert(reactions).values({ eventId, userId }).onConflictDoNothing();
+  await createNotification(ev.authorId, "kudos", userId, { eventId });
   return { kudosed: true };
 }
 

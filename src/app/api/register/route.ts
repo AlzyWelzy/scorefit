@@ -8,6 +8,7 @@ import { sendVerificationCode } from "@/lib/mailer";
 import { rateLimit, clientIp, sameOrigin } from "@/lib/rateLimit";
 import { captureException } from "@/lib/observability";
 import { isPwnedPassword } from "@/lib/pwned";
+import { verifyTurnstile } from "@/lib/turnstile";
 
 export const runtime = "nodejs";
 
@@ -15,6 +16,7 @@ const schema = z.object({
   email: z.email(),
   password: z.string().min(8, "Password must be at least 8 characters"),
   name: z.string().trim().min(1).max(80).optional(),
+  turnstileToken: z.string().optional(),
   // Birth year captured at registration so the age cohort is known up front. Stored
   // (year only — never full DOB); it does NOT block account creation, but gates the
   // public/social surfaces (leaderboards) for under-MIN_AGE users. Optional for now
@@ -46,6 +48,11 @@ export async function POST(req: Request) {
     );
   }
   const email = parsed.data.email.toLowerCase();
+
+  // Bot/abuse gate (Cloudflare Turnstile). No-op when TURNSTILE_SECRET_KEY isn't set.
+  if (!(await verifyTurnstile(parsed.data.turnstileToken, ip))) {
+    return NextResponse.json({ error: "Verification failed. Please try again." }, { status: 403 });
+  }
 
   // Reject passwords known to be in a breach corpus (HIBP k-anonymity; fails open). Runs
   // for every request regardless of email, so it adds no enumeration signal.

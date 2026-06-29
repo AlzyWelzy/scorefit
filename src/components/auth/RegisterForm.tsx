@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { Field } from "./Field";
+import { Turnstile } from "./Turnstile";
 
 export function RegisterForm() {
   const router = useRouter();
@@ -12,6 +13,7 @@ export function RegisterForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [birthYear, setBirthYear] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -34,7 +36,7 @@ export function RegisterForm() {
     const res = await fetch("/api/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: name || undefined, email, password, birthYear: by }),
+      body: JSON.stringify({ name: name || undefined, email, password, birthYear: by, turnstileToken }),
     });
 
     if (!res.ok) {
@@ -88,6 +90,7 @@ export function RegisterForm() {
         inputMode="numeric"
         hint="Used only to confirm your age for public features. We never store your full date of birth."
       />
+      <Turnstile onToken={setTurnstileToken} />
       <button
         type="submit"
         disabled={busy}

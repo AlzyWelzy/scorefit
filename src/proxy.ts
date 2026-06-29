@@ -24,6 +24,7 @@ export const config = {
     "/feed/:path*",
     "/groups/:path*",
     "/users/:path*",
+    "/notifications/:path*",
     "/admin/:path*",
   ],
 };

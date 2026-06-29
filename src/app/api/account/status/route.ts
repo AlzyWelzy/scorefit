@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getUserById } from "@/db/users";
 import { openReportCount } from "@/db/moderation";
+import { unreadNotificationCount } from "@/db/inbox";
 import { featureEnabledFor } from "@/lib/flags";
 
 export const runtime = "nodejs";
@@ -36,6 +37,7 @@ export async function GET() {
       // Open-report count for the moderation nav badge (0 for non-moderators — no leak).
       openReports:
         user.isAdmin || user.role === "admin" || user.role === "moderator" ? await openReportCount() : 0,
+      unreadNotifications: await unreadNotificationCount(user.id),
       features: {
         leaderboards: featureEnabledFor("leaderboards", user.featureAllowlist),
         social: featureEnabledFor("social", user.featureAllowlist),

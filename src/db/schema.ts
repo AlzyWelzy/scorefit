@@ -383,6 +383,25 @@ export const notificationPreferences = pgTable("notification_preferences", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+// In-app notification inbox. System-generated, structured (never free text) — same
+// moderation-friendly posture as activity_events. Read on /notifications; the bell shows
+// the unread count.
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: uuid("id").primaryKey().$defaultFn(newId),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(), // new_follower | kudos
+    actorId: uuid("actor_id").references(() => users.id, { onDelete: "set null" }),
+    data: jsonb("data").$type<Record<string, unknown>>(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("idx_notif_user").on(t.userId, t.createdAt)],
+);
+
 // Bodyweight / body-measurement tracking (P4). One row per user per local day; the
 // weight is stored in the user's current unit (converted on a unit switch like logs).
 // Deliberately minimal — bodyweight only — and NEVER fed into any leaderboard, XP, or
