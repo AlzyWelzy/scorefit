@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { getNotificationPrefs } from "@/db/notifications";
 import { NotificationPrefsForm } from "@/components/account/NotificationPrefsForm";
+import { PushToggle } from "@/components/account/PushToggle";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,6 +30,7 @@ export default async function NotificationsPage() {
         Choose which emails you get. We respect quiet hours and never sell your address.
       </p>
       <NotificationPrefsForm initial={prefs} />
+      <PushToggle />
     </div>
   );
 }

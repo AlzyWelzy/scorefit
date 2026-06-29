@@ -402,6 +402,21 @@ export const notifications = pgTable(
   (t) => [index("idx_notif_user").on(t.userId, t.createdAt)],
 );
 
+// Web-push subscriptions (one per browser/device). Keyed by the push endpoint URL.
+export const pushSubscriptions = pgTable(
+  "push_subscriptions",
+  {
+    endpoint: text("endpoint").primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("idx_push_user").on(t.userId)],
+);
+
 // Bodyweight / body-measurement tracking (P4). One row per user per local day; the
 // weight is stored in the user's current unit (converted on a unit switch like logs).
 // Deliberately minimal — bodyweight only — and NEVER fed into any leaderboard, XP, or

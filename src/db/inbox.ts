@@ -2,8 +2,14 @@ import "server-only";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { notifications, users } from "@/db/schema";
+import { sendPushToUser } from "@/lib/push";
 
 export type NotificationKind = "new_follower" | "kudos";
+
+const PUSH_BODY: Record<NotificationKind, string> = {
+  new_follower: "You have a new follower",
+  kudos: "Someone gave you kudos",
+};
 
 const displayName = (name: string | null, id: string) => name?.trim() || `Lifter#${id.slice(0, 4)}`;
 
@@ -17,6 +23,7 @@ export async function createNotification(
   if (actorId && actorId === userId) return;
   try {
     await db.insert(notifications).values({ userId, kind, actorId, data: data ?? null });
+    await sendPushToUser(userId, { title: "ScoreFit", body: PUSH_BODY[kind], url: "/notifications" });
   } catch {
     // notifications are non-critical
   }

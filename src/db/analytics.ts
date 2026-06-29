@@ -1,5 +1,5 @@
 import "server-only";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { users, workoutSessions } from "@/db/schema";
 import { openReportCount } from "@/db/moderation";
@@ -58,4 +58,26 @@ export async function getAdminMetrics(): Promise<AdminMetrics> {
     activeUsers7d: s?.activeUsers7d ?? 0,
     openReports,
   };
+}
+
+export type CohortRow = { week: string; signups: number; activated: number };
+
+/**
+ * Weekly signup cohorts for the last 8 weeks, with the share that "activated" — logged a
+ * qualifying session within 7 days of signing up. The clearest read on whether onboarding
+ * converts new users into trainers.
+ */
+export async function getRetentionCohorts(): Promise<CohortRow[]> {
+  const rows = await db
+    .select({
+      week: sql<string>`to_char(date_trunc('week', ${users.createdAt}), 'YYYY-MM-DD')`,
+      signups: sql<number>`count(distinct ${users.id})::int`,
+      activated: sql<number>`count(distinct ${users.id}) filter (where ${workoutSessions.qualifies} and ${workoutSessions.sessionDate} <= (${users.createdAt}::date + 7))::int`,
+    })
+    .from(users)
+    .leftJoin(workoutSessions, eq(workoutSessions.userId, users.id))
+    .where(sql`${users.createdAt} >= now() - interval '8 weeks'`)
+    .groupBy(sql`date_trunc('week', ${users.createdAt})`)
+    .orderBy(sql`date_trunc('week', ${users.createdAt}) desc`);
+  return rows.map((r) => ({ week: r.week, signups: r.signups, activated: r.activated }));
 }

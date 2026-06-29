@@ -3,11 +3,12 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { getUserById } from "@/db/users";
-import { getFeed, type FeedItem } from "@/db/social";
-import { getExercise } from "@/lib/data";
+import { getFeed } from "@/db/social";
 import { featureEnabledFor } from "@/lib/flags";
+import { describeFeedItem } from "@/lib/feedText";
 import { KudosButton } from "@/components/social/KudosButton";
 import { ReportDialog } from "@/components/social/ReportDialog";
+import { FeedLoadMore } from "@/components/social/FeedLoadMore";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,29 +17,6 @@ export const metadata: Metadata = {
   alternates: { canonical: "/feed" },
   robots: { index: false, follow: false },
 };
-
-// Human-readable, system-generated line per event kind (never free text).
-function describe(item: FeedItem): string {
-  const d = item.data ?? {};
-  switch (item.kind) {
-    case "e1rm_pr": {
-      const name = getExercise(String(d.exerciseSlug))?.name ?? String(d.exerciseSlug ?? "a lift");
-      return `hit a new best on ${name} — e1RM ${d.e1rm ?? "?"}`;
-    }
-    case "achievement":
-      return `unlocked “${d.title ?? "an achievement"}”`;
-    case "streak_milestone":
-      return `reached a ${d.weeks ?? ""}-week streak`;
-    case "program_completed": {
-      const prog = d.program === "beginner" ? "Beginner" : d.program === "intermediate" ? "Int/Adv" : null;
-      return prog ? `completed the ${prog} block` : `completed a training block`;
-    }
-    case "session_completed":
-      return `trained`;
-    default:
-      return "did something";
-  }
-}
 
 export default async function FeedPage() {
   const session = await auth();
@@ -49,7 +27,9 @@ export default async function FeedPage() {
   // Gated: SOCIAL_ENABLED globally, or the per-user allowlist (staged rollout).
   if (!featureEnabledFor("social", user.featureAllowlist)) notFound();
 
-  const items = await getFeed(session.user.id);
+  const items = await getFeed(session.user.id, 30);
+  const last = items[items.length - 1];
+  const nextCursor = items.length === 30 && last ? { createdAt: last.createdAt.toISOString(), id: last.id } : null;
 
   return (
     <div className="mx-auto max-w-2xl px-5 py-12">
@@ -77,7 +57,7 @@ export default async function FeedPage() {
                   <Link href={`/users/${item.userId}`} className="font-semibold hover:underline">
                     {item.authorName}
                   </Link>{" "}
-                  {describe(item)}
+                  {describeFeedItem(item)}
                 </p>
                 <KudosButton eventId={item.id} initialCount={item.kudos} initialMine={item.youKudosed} />
               </div>
@@ -91,6 +71,8 @@ export default async function FeedPage() {
           ))}
         </ul>
       )}
+
+      {items.length > 0 && <FeedLoadMore initialCursor={nextCursor} />}
     </div>
   );
 }

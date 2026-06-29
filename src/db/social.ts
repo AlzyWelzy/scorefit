@@ -105,7 +105,11 @@ const displayName = (name: string | null, id: string) => name?.trim() || `Lifter
  * anyone blocked in either direction. Includes kudos counts and whether the viewer
  * kudosed each. Newest first.
  */
-export async function getFeed(viewerId: string, limit = 50): Promise<FeedItem[]> {
+export async function getFeed(
+  viewerId: string,
+  limit = 30,
+  cursor?: { createdAt: string; id: string },
+): Promise<FeedItem[]> {
   const followees = await db
     .select({ id: follows.followeeId })
     .from(follows)
@@ -156,8 +160,17 @@ export async function getFeed(viewerId: string, limit = 50): Promise<FeedItem[]>
     })
     .from(activityEvents)
     .innerJoin(users, eq(activityEvents.userId, users.id))
-    .where(and(inArray(activityEvents.userId, visible), isNull(activityEvents.hiddenAt)))
-    .orderBy(desc(activityEvents.createdAt))
+    .where(
+      and(
+        inArray(activityEvents.userId, visible),
+        isNull(activityEvents.hiddenAt),
+        // Keyset pagination: rows strictly older than the cursor (createdAt, id).
+        cursor
+          ? sql`(${activityEvents.createdAt}, ${activityEvents.id}) < (${cursor.createdAt}::timestamptz, ${cursor.id}::uuid)`
+          : sql`true`,
+      ),
+    )
+    .orderBy(desc(activityEvents.createdAt), desc(activityEvents.id))
     .limit(limit);
 
   return rows.map((r) => ({
