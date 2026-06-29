@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { isUserAdmin } from "@/db/moderation";
+import { isUserModerator } from "@/db/moderation";
 import { getAdminMetrics } from "@/db/analytics";
 
 export const runtime = "nodejs";
@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 export default async function AdminMetricsPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login?callbackUrl=/admin/metrics");
-  if (!(await isUserAdmin(session.user.id))) notFound();
+  if (!(await isUserModerator(session.user.id))) notFound();
 
   const m = await getAdminMetrics();
 

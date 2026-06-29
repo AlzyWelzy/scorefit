@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { isUserAdmin, listReports, groupOpenReports } from "@/db/moderation";
+import { isUserModerator, listReports, groupOpenReports } from "@/db/moderation";
 import { ReportQueue } from "@/components/admin/ReportQueue";
 import { GroupedReports } from "@/components/admin/GroupedReports";
 
@@ -20,7 +20,7 @@ export default async function AdminPage() {
   if (!session?.user?.id) redirect("/login?callbackUrl=/admin");
 
   // Non-admins get a 404, not a 403 — don't reveal the route exists.
-  if (!(await isUserAdmin(session.user.id))) notFound();
+  if (!(await isUserModerator(session.user.id))) notFound();
 
   const [open, groups] = await Promise.all([listReports("open"), groupOpenReports()]);
 

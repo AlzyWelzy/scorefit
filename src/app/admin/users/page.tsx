@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { isUserAdmin, searchUsers } from "@/db/moderation";
+import { isUserAdmin, isUserModerator, searchUsers } from "@/db/moderation";
 import { UserAdmin } from "@/components/admin/UserAdmin";
 
 export const runtime = "nodejs";
@@ -17,8 +17,9 @@ export const metadata: Metadata = {
 export default async function AdminUsersPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const session = await auth();
   if (!session?.user?.id) redirect("/login?callbackUrl=/admin/users");
-  // Non-admins get a 404, not a 403 — don't reveal the route exists.
-  if (!(await isUserAdmin(session.user.id))) notFound();
+  // Non-moderators get a 404, not a 403 — don't reveal the route exists.
+  if (!(await isUserModerator(session.user.id))) notFound();
+  const viewerIsAdmin = await isUserAdmin(session.user.id);
 
   const { q } = await searchParams;
   const query = (q ?? "").trim();
@@ -46,12 +47,14 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
 
       <UserAdmin
         selfId={session.user.id}
+        viewerIsAdmin={viewerIsAdmin}
         searched={!!query}
         users={users.map((u) => ({
           id: u.id,
           email: u.email,
           displayName: u.displayName,
           isAdmin: u.isAdmin,
+          role: u.role,
           suspended: u.suspended,
           gamificationOptOut: u.gamificationOptOut,
           createdAt: u.createdAt.toISOString(),

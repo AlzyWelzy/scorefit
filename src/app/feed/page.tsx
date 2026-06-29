@@ -74,7 +74,10 @@ export default async function FeedPage() {
             <li key={item.id} className="rounded-card border border-line bg-surface p-4">
               <div className="flex items-start justify-between gap-3">
                 <p className="text-sm text-fg">
-                  <span className="font-semibold">{item.authorName}</span> {describe(item)}
+                  <Link href={`/users/${item.userId}`} className="font-semibold hover:underline">
+                    {item.authorName}
+                  </Link>{" "}
+                  {describe(item)}
                 </p>
                 <KudosButton eventId={item.id} initialCount={item.kudos} initialMine={item.youKudosed} />
               </div>

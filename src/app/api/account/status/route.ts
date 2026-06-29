@@ -31,9 +31,11 @@ export async function GET() {
       currentWeek: user.currentWeek,
       // Drives which nav links the client shows: gamified surfaces + flag-gated pages.
       gamificationOptOut: user.gamificationOptOut,
-      isAdmin: user.isAdmin,
-      // Open-report count for the admin nav badge (0 for non-admins — no leak).
-      openReports: user.isAdmin ? await openReportCount() : 0,
+      isAdmin: user.isAdmin || user.role === "admin",
+      isModerator: user.isAdmin || user.role === "admin" || user.role === "moderator",
+      // Open-report count for the moderation nav badge (0 for non-moderators — no leak).
+      openReports:
+        user.isAdmin || user.role === "admin" || user.role === "moderator" ? await openReportCount() : 0,
       features: {
         leaderboards: featureEnabledFor("leaderboards", user.featureAllowlist),
         social: featureEnabledFor("social", user.featureAllowlist),

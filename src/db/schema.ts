@@ -59,6 +59,9 @@ export const users = pgTable("users", {
   // PUBLIC/social privileges only (leaderboards, and later feed/follows) — never the
   // private training account, which a user can always keep using and exporting.
   isAdmin: boolean("is_admin").notNull().default(false),
+  // Privilege role: 'moderator' reviews reports/users; 'admin' can also delete/grant.
+  // Kept in sync with the legacy isAdmin boolean by setAdmin/setRole.
+  role: text("role", { enum: ["user", "moderator", "admin"] }).notNull().default("user"),
   suspendedSocialAt: timestamp("suspended_social_at", { withTimezone: true }),
   // "Where you are" — the program/week the logger and TodayCard default to, plus when
   // the user started, so the app resumes where they left off instead of always week 1.

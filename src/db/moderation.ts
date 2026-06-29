@@ -7,14 +7,24 @@ export type ReportTargetType = Report["targetType"];
 export type ReportReason = Report["reason"];
 export type ReportStatus = Report["status"];
 
-/** True if the user exists and has the admin flag. Read fresh (privileged surface). */
+/** True if the user is a full admin (can delete/grant). Read fresh (privileged surface). */
 export async function isUserAdmin(userId: string): Promise<boolean> {
   const [row] = await db
-    .select({ isAdmin: users.isAdmin })
+    .select({ isAdmin: users.isAdmin, role: users.role })
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);
-  return !!row?.isAdmin;
+  return !!row && (row.isAdmin || row.role === "admin");
+}
+
+/** True if the user can MODERATE (review reports/users) — admins and moderators. */
+export async function isUserModerator(userId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ isAdmin: users.isAdmin, role: users.role })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  return !!row && (row.isAdmin || row.role === "admin" || row.role === "moderator");
 }
 
 /** File a moderation report. Returns the new report id. */
@@ -128,9 +138,14 @@ export async function getReportById(
 
 // ─── User administration ───────────────────────────────────────────────────────
 
-/** Grant or revoke the admin flag. */
+/** Grant or revoke full admin (keeps the role enum in sync). */
 export async function setAdmin(userId: string, isAdmin: boolean): Promise<void> {
-  await db.update(users).set({ isAdmin }).where(eq(users.id, userId));
+  await db.update(users).set({ isAdmin, role: isAdmin ? "admin" : "user" }).where(eq(users.id, userId));
+}
+
+/** Set a user's privilege role (keeps the legacy isAdmin boolean in sync). */
+export async function setRole(userId: string, role: "user" | "moderator" | "admin"): Promise<void> {
+  await db.update(users).set({ role, isAdmin: role === "admin" }).where(eq(users.id, userId));
 }
 
 // ─── Admin audit log ───────────────────────────────────────────────────────────
@@ -199,6 +214,7 @@ export type AdminUserRow = {
   email: string;
   displayName: string | null;
   isAdmin: boolean;
+  role: "user" | "moderator" | "admin";
   suspended: boolean;
   gamificationOptOut: boolean;
   createdAt: Date;
@@ -213,6 +229,7 @@ export async function searchUsers(query: string, limit = 25): Promise<AdminUserR
       email: users.email,
       displayName: users.displayName,
       isAdmin: users.isAdmin,
+      role: users.role,
       suspendedSocialAt: users.suspendedSocialAt,
       gamificationOptOut: users.gamificationOptOut,
       createdAt: users.createdAt,
@@ -226,6 +243,7 @@ export async function searchUsers(query: string, limit = 25): Promise<AdminUserR
     email: r.email,
     displayName: r.displayName,
     isAdmin: r.isAdmin,
+    role: r.role,
     suspended: !!r.suspendedSocialAt,
     gamificationOptOut: r.gamificationOptOut,
     createdAt: r.createdAt,

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { isUserAdmin, listAuditLog } from "@/db/moderation";
+import { isUserModerator, listAuditLog } from "@/db/moderation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 export default async function AdminAuditPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login?callbackUrl=/admin/audit");
-  if (!(await isUserAdmin(session.user.id))) notFound();
+  if (!(await isUserModerator(session.user.id))) notFound();
 
   const entries = await listAuditLog(200);
 

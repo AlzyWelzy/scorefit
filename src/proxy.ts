@@ -23,6 +23,7 @@ export const config = {
     "/onboarding/:path*",
     "/feed/:path*",
     "/groups/:path*",
+    "/users/:path*",
     "/admin/:path*",
   ],
 };

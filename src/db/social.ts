@@ -1,7 +1,7 @@
 import "server-only";
 import { and, asc, desc, eq, inArray, isNull, not, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { follows, blocks, activityEvents, reactions, eventComments, users, type ActivityEvent } from "@/db/schema";
+import { follows, blocks, activityEvents, reactions, eventComments, users, userGameProfile, type ActivityEvent } from "@/db/schema";
 
 export type ActivityKind = ActivityEvent["kind"];
 
@@ -252,4 +252,63 @@ export async function mutualFollowIds(userId: string): Promise<string[]> {
       ),
     );
   return rows.map((r) => r.id);
+}
+
+// ─── Public profile ──────────────────────────────────────────────────────────
+
+export type PublicProfile = {
+  userId: string;
+  name: string;
+  level: number;
+  title: string;
+  joinedAt: Date;
+  isSelf: boolean;
+  isFollowing: boolean;
+};
+
+/**
+ * A user's public profile AS SEEN BY the viewer, or null if they can't see it. Visibility
+ * is enforced here, not the caller: blocks hard-override; suspended accounts are hidden;
+ * 'private' is self-only; 'friends' requires a mutual follow; 'public' is anyone signed in.
+ */
+export async function getPublicProfile(viewerId: string, targetId: string): Promise<PublicProfile | null> {
+  if (await eitherBlocks(viewerId, targetId)) return null;
+
+  const [u] = await db
+    .select({
+      name: users.displayName,
+      createdAt: users.createdAt,
+      visibility: users.profileVisibility,
+      suspended: users.suspendedSocialAt,
+    })
+    .from(users)
+    .where(eq(users.id, targetId))
+    .limit(1);
+  if (!u) return null;
+
+  const isSelf = viewerId === targetId;
+  if (!isSelf) {
+    if (u.suspended) return null;
+    if (u.visibility === "private") return null;
+    if (u.visibility === "friends") {
+      const mutuals = new Set(await mutualFollowIds(viewerId));
+      if (!mutuals.has(targetId)) return null;
+    }
+  }
+
+  const [gp] = await db
+    .select({ level: userGameProfile.level, title: userGameProfile.title })
+    .from(userGameProfile)
+    .where(eq(userGameProfile.userId, targetId))
+    .limit(1);
+
+  return {
+    userId: targetId,
+    name: displayName(u.name, targetId),
+    level: gp?.level ?? 1,
+    title: gp?.title ?? "Novice",
+    joinedAt: u.createdAt,
+    isSelf,
+    isFollowing: isSelf ? false : await isFollowing(viewerId, targetId),
+  };
 }

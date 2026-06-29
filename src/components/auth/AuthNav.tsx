@@ -33,6 +33,7 @@ export function AuthNav() {
   const [features, setFeatures] = useState<Features>({ leaderboards: false, social: false });
   const [gamificationOptOut, setGamificationOptOut] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isModerator, setIsModerator] = useState(false);
   const [openReports, setOpenReports] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -46,6 +47,7 @@ export function AuthNav() {
         if (d.features) setFeatures(d.features);
         setGamificationOptOut(!!d.gamificationOptOut);
         setIsAdmin(!!d.isAdmin);
+        setIsModerator(!!d.isModerator);
         setOpenReports(Number(d.openReports) || 0);
       })
       .catch(() => {});
@@ -113,11 +115,11 @@ export function AuthNav() {
           className="btn-surface relative inline-flex items-center gap-1 px-2.5 py-2 text-muted hover:text-fg"
           aria-haspopup="menu"
           aria-expanded={open}
-          aria-label={isAdmin && openReports > 0 ? `Account menu (${openReports} open reports)` : "Account menu"}
+          aria-label={(isAdmin || isModerator) && openReports > 0 ? `Account menu (${openReports} open reports)` : "Account menu"}
         >
           <UserRound className="h-3.5 w-3.5" />
           <ChevronDown className="h-3 w-3" />
-          {isAdmin && openReports > 0 && (
+          {(isAdmin || isModerator) && openReports > 0 && (
             <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-hard ring-2 ring-bg" aria-hidden />
           )}
         </button>
@@ -134,10 +136,10 @@ export function AuthNav() {
               </Link>
             ))}
             <div className="my-1 h-px bg-line" />
-            {isAdmin && (
+            {(isAdmin || isModerator) && (
               <Link href="/admin" role="menuitem" onClick={() => setOpen(false)} className={itemClass}>
                 <Shield className="h-4 w-4 shrink-0" />
-                Admin
+                {isAdmin ? "Admin" : "Moderation"}
                 {openReports > 0 && (
                   <span className="ml-auto rounded-full bg-hard px-1.5 py-0.5 text-[10px] font-semibold text-bg">
                     {openReports}
