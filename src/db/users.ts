@@ -1,7 +1,7 @@
 import "server-only";
-import { and, eq, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { users, workoutLogs, type User } from "@/db/schema";
+import { users, workoutLogs, userSessions, type User } from "@/db/schema";
 import { logSecurityEvent } from "@/db/security";
 
 /** kg→lb and lb→kg factors for converting stored loads on a unit change. */
@@ -104,7 +104,37 @@ export async function setPasswordHash(id: string, passwordHash: string): Promise
  *  the JWT is validated against. Revocation is eventual, bounded by the jwt re-check window. */
 export async function bumpTokenVersion(id: string): Promise<void> {
   await db.update(users).set({ tokenVersion: sql`${users.tokenVersion} + 1` }).where(eq(users.id, id));
+  // Drop all device-session rows so the session list reflects the sign-out everywhere.
+  await db.delete(userSessions).where(eq(userSessions.userId, id));
   await logSecurityEvent(id, "signed_out_all");
+}
+
+export type LoginSession = {
+  id: string;
+  userAgent: string | null;
+  country: string | null;
+  createdAt: Date;
+  lastSeenAt: Date;
+};
+
+/** A user's active device sessions, most-recently-seen first. */
+export async function listLoginSessions(userId: string): Promise<LoginSession[]> {
+  return db
+    .select({
+      id: userSessions.id,
+      userAgent: userSessions.userAgent,
+      country: userSessions.country,
+      createdAt: userSessions.createdAt,
+      lastSeenAt: userSessions.lastSeenAt,
+    })
+    .from(userSessions)
+    .where(eq(userSessions.userId, userId))
+    .orderBy(desc(userSessions.lastSeenAt));
+}
+
+/** Revoke one of the user's own sessions (deletes the row → that device signs out). */
+export async function revokeLoginSession(userId: string, sessionId: string): Promise<void> {
+  await db.delete(userSessions).where(and(eq(userSessions.id, sessionId), eq(userSessions.userId, userId)));
 }
 
 export async function setUnit(id: string, unit: "kg" | "lb"): Promise<void> {

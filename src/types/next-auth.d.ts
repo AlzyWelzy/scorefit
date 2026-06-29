@@ -10,6 +10,8 @@ declare module "next-auth" {
       // Whether the user's email is verified. Named `verified` (not
       // `emailVerified`) to avoid colliding with the Date-typed adapter field.
       verified: boolean;
+      // The active session row's id (for per-device session management UI).
+      sessionId?: string;
     } & DefaultSession["user"];
   }
 }
@@ -23,5 +25,7 @@ declare module "next-auth/jwt" {
     // with, and the epoch-ms of the last successful DB revocation check.
     ver?: number;
     verAt?: number;
+    // Active session row id — deleting that row revokes this specific device.
+    sid?: string;
   }
 }

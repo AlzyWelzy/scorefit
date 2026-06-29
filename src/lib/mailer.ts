@@ -114,3 +114,16 @@ export async function sendWeeklyDigest(to: string, stats: { sessions: number; to
     ),
   });
 }
+
+export async function sendNewLocationAlert(to: string, country: string) {
+  await sendMail({
+    to,
+    subject: "New sign-in to your ScoreFit account",
+    text: `We noticed a sign-in to your account from a new location (${country}). If this was you, no action is needed. If not, reset your password: https://scorefit.net/forgot-password`,
+    html: wrap(
+      "New sign-in location",
+      `<p style="color:#9ba4ad">A sign-in to your account came from a new location (<b>${country}</b>).</p>
+       <p>If this was you, you can ignore this. If not, <a href="https://scorefit.net/forgot-password" style="color:#ff6a3d">reset your password</a> right away and review your active sessions in account security.</p>`,
+    ),
+  });
+}

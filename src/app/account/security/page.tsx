@@ -3,7 +3,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { listSecurityEvents } from "@/db/security";
+import { listLoginSessions } from "@/db/users";
 import { SignOutEverywhere } from "@/components/account/SignOutEverywhere";
+import { SessionsList } from "@/components/account/SessionsList";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,12 +23,16 @@ const LABEL: Record<string, string> = {
   backup_codes_regenerated: "Backup codes regenerated",
   email_changed: "Email changed",
   signed_out_all: "Signed out of all devices",
+  new_location: "Sign-in from a new location",
 };
 
 export default async function SecurityActivityPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login?callbackUrl=/account/security");
-  const events = await listSecurityEvents(session.user.id);
+  const [events, sessions] = await Promise.all([
+    listSecurityEvents(session.user.id),
+    listLoginSessions(session.user.id),
+  ]);
 
   return (
     <div className="mx-auto max-w-2xl px-5 py-12">
@@ -40,6 +46,17 @@ export default async function SecurityActivityPage() {
       </p>
 
       <SignOutEverywhere />
+
+      <SessionsList
+        currentId={session.user.sessionId}
+        sessions={sessions.map((s) => ({
+          id: s.id,
+          userAgent: s.userAgent,
+          country: s.country,
+          createdAt: s.createdAt.toISOString(),
+          lastSeenAt: s.lastSeenAt.toISOString(),
+        }))}
+      />
 
       <h2 className="eyebrow mt-8 mb-2">Recent activity</h2>
       {events.length === 0 ? (

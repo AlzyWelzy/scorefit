@@ -3,10 +3,12 @@ import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { authConfig } from "@/auth.config";
 import { db } from "@/db";
-import { users } from "@/db/schema";
+import { users, userSessions } from "@/db/schema";
+import { logSecurityEvent } from "@/db/security";
+import { sendNewLocationAlert } from "@/lib/mailer";
 import { rateLimit, clientIp } from "@/lib/rateLimit";
 import { verifyTotp, decryptSecret } from "@/lib/totp";
 import { verifyToken } from "@/db/tokens";
@@ -89,6 +91,29 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           if (!passed) return null;
         }
 
+        // Best-effort device-session record + new-location alert. Wrapped so nothing here
+        // can ever block a valid login.
+        let sessionId: string | undefined;
+        try {
+          const h = await headers();
+          const country = h.get("x-vercel-ip-country") || null;
+          const ua = h.get("user-agent")?.slice(0, 300) || null;
+          if (country && user.lastLoginCountry && user.lastLoginCountry !== country) {
+            await logSecurityEvent(user.id, "new_location", { country });
+            void sendNewLocationAlert(user.email, country).catch(() => {});
+          }
+          if (country && user.lastLoginCountry !== country) {
+            await db.update(users).set({ lastLoginCountry: country }).where(eq(users.id, user.id));
+          }
+          const [srow] = await db
+            .insert(userSessions)
+            .values({ userId: user.id, userAgent: ua, ip, country })
+            .returning({ id: userSessions.id });
+          sessionId = srow?.id;
+        } catch {
+          /* session/geo bookkeeping is best-effort */
+        }
+
         return {
           id: user.id,
           email: user.email,
@@ -97,6 +122,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           timezone: user.timezone,
           verified: !!user.emailVerified,
           tokenVersion: user.tokenVersion,
+          sessionId,
         };
       },
     }),
@@ -115,6 +141,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         t.verified = (user as { verified?: boolean }).verified ?? false;
         t.ver = (user as { tokenVersion?: number }).tokenVersion ?? 0;
         t.verAt = Date.now();
+        t.sid = (user as { sessionId?: string }).sessionId ?? t.sid;
       }
       // Re-read from the DB at most once per STALE_MS (or on an explicit
       // update()), so a password change — which bumps tokenVersion — revokes the
@@ -167,6 +194,26 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         t.ver = fresh[0].tokenVersion;
         t.verAt = Date.now();
       }
+      // Per-device revocation: if this token names a session row that's been deleted
+      // (revoked elsewhere / signed out everywhere), sign out. Fail-open: only revoke on a
+      // definitive empty read; legacy tokens with no sid are unaffected.
+      if (needsRefresh && t.sid) {
+        try {
+          const s = await db
+            .select({ id: userSessions.id })
+            .from(userSessions)
+            .where(eq(userSessions.id, String(t.sid)))
+            .limit(1);
+          if (s.length === 0) return null;
+          void db
+            .update(userSessions)
+            .set({ lastSeenAt: new Date() })
+            .where(eq(userSessions.id, String(t.sid)))
+            .catch(() => {});
+        } catch {
+          /* infra hiccup → fail open, recheck next cycle */
+        }
+      }
       return t;
     },
     // Auth.js sets token.sub to the user id on sign-in; expose it on the session.
@@ -177,8 +224,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.unit = t.unit ?? "kg";
         session.user.timezone = t.tz ?? "UTC";
         session.user.verified = t.verified ?? false;
+        session.user.sessionId = (token as { sid?: string }).sid;
       }
       return session;
+    },
+  },
+  events: {
+    // Sign-out: drop this device's session row so the active-sessions list stays accurate.
+    async signOut(message) {
+      const sid = (message as { token?: { sid?: string } }).token?.sid;
+      if (sid) await db.delete(userSessions).where(eq(userSessions.id, sid)).catch(() => {});
     },
   },
 });

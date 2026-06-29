@@ -63,6 +63,8 @@ export const users = pgTable("users", {
   // Kept in sync with the legacy isAdmin boolean by setAdmin/setRole.
   role: text("role", { enum: ["user", "moderator", "admin"] }).notNull().default("user"),
   suspendedSocialAt: timestamp("suspended_social_at", { withTimezone: true }),
+  // Last sign-in country (ISO code from the edge) — drives new-location security alerts.
+  lastLoginCountry: text("last_login_country"),
   // "Where you are" — the program/week the logger and TodayCard default to, plus when
   // the user started, so the app resumes where they left off instead of always week 1.
   currentProgram: text("current_program", { enum: ["beginner", "intermediate"] }),
@@ -415,6 +417,42 @@ export const pushSubscriptions = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("idx_push_user").on(t.userId)],
+);
+
+// Active login sessions, one row per device/login. Lets users see + revoke individual
+// sessions (the JWT carries this row's id; deleting the row revokes that device on the
+// next revocation check). Best-effort: failure to create one never blocks login.
+export const userSessions = pgTable(
+  "user_sessions",
+  {
+    id: uuid("id").primaryKey().$defaultFn(newId),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    userAgent: text("user_agent"),
+    ip: text("ip"),
+    country: text("country"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("idx_usersession_user").on(t.userId, t.lastSeenAt)],
+);
+
+// Materialized leaderboard rows, rebuilt hourly by cron. Read path uses these (O(1))
+// and falls back to live compute when empty (pre-first-run / below participant floor).
+export const leaderboardCache = pgTable(
+  "leaderboard_cache",
+  {
+    board: text("board").notNull(), // "consistency" | "pr_count"
+    rank: integer("rank").notNull(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    value: integer("value").notNull(),
+    computedAt: timestamp("computed_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("idx_lb_board").on(t.board, t.rank)],
 );
 
 // Bodyweight / body-measurement tracking (P4). One row per user per local day; the

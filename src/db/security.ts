@@ -9,7 +9,8 @@ export type SecurityEventKind =
   | "2fa_disabled"
   | "backup_codes_regenerated"
   | "email_changed"
-  | "signed_out_all";
+  | "signed_out_all"
+  | "new_location";
 
 /** Append a security-history event. Best-effort — never throws into the caller, since the
  *  security action itself (password change, etc.) must succeed regardless of logging. */
