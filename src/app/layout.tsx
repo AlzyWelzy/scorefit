@@ -9,6 +9,7 @@ import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { TimezoneSync } from "@/components/TimezoneSync";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
 import { VerifyBanner } from "@/components/auth/VerifyBanner";
+import { DeletionBanner } from "@/components/account/DeletionBanner";
 import { siteGraph, ldJson } from "@/lib/structuredData";
 
 const hanken = Hanken_Grotesk({
@@ -94,6 +95,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AuthSessionProvider>
           <SiteHeader />
           <VerifyBanner />
+          <DeletionBanner />
           <main id="main" className="pb-16 md:pb-0">{children}</main>
           <Footer />
           <CommandPaletteMount />

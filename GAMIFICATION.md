@@ -1,5 +1,13 @@
 # ScoreFit — Gamification Design & Roadmap
 
+> **✅ Status (2026-06-29):** Phases 0–5 are implemented and verified — dated sessions,
+> week-based streaks + freezes, XP/levels/titles/seasons, achievements + PR events, both
+> leaderboards (now **materialized hourly**), groups + coach dashboards, and the full social
+> layer (feed with cursor pagination, follows, kudos, comments, **public profiles**, **in-app
+> inbox**, **web push**). Moderation + the safety/legal/ED gate are in place. All of it stays
+> behind `SOCIAL_ENABLED` / `LEADERBOARDS_ENABLED` until you flip them. See
+> [IMPROVEMENTS.md](IMPROVEMENTS.md) for the full shipped list + operational steps.
+
 Streaks, leaderboards, groups, achievements, XP, and challenges — designed for a
 **science-based hypertrophy** product, not a powerlifting meet. Every mechanic is built to
 reinforce good training (consistency, completion, honest logging, gradual overload) and to

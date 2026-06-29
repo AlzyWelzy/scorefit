@@ -169,8 +169,10 @@ export async function DELETE(req: Request) {
     if (!ok) return NextResponse.json({ error: "Password is incorrect." }, { status: 400 });
   }
 
-  // Imported lazily to keep the hot path small.
-  const { deleteUser } = await import("@/db/users");
-  await deleteUser(user.id);
-  return NextResponse.json({ ok: true }, { status: 200 });
+  // GDPR cool-off: schedule the deletion (30-day grace) rather than erasing immediately,
+  // so an accidental or compromised-account deletion can be cancelled. A daily cron purges
+  // accounts past their window; the user can cancel any time before then.
+  const { scheduleAccountDeletion } = await import("@/db/users");
+  const scheduledFor = await scheduleAccountDeletion(user.id);
+  return NextResponse.json({ ok: true, scheduledFor: scheduledFor.toISOString() }, { status: 200 });
 }

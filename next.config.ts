@@ -8,15 +8,19 @@ import type { NextConfig } from "next";
 // is dropped in production (only dev tooling needs it). YouTube hosts are
 // allow-listed for the click-to-play demo embeds and thumbnails.
 const isDev = process.env.NODE_ENV !== "production";
-const scriptSrc = ["'self'", "'unsafe-inline'", isDev ? "'unsafe-eval'" : ""].filter(Boolean).join(" ");
+// Cloudflare Turnstile loads its script + renders its challenge in an iframe from here,
+// and the widget posts back to the same host — so it must be allow-listed in script-src,
+// frame-src AND connect-src or the CAPTCHA silently fails to render / verify.
+const TURNSTILE = "https://challenges.cloudflare.com";
+const scriptSrc = ["'self'", "'unsafe-inline'", TURNSTILE, isDev ? "'unsafe-eval'" : ""].filter(Boolean).join(" ");
 const csp = [
   "default-src 'self'",
   `script-src ${scriptSrc}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://i.ytimg.com https://img.youtube.com",
   "font-src 'self' data:",
-  "connect-src 'self'",
-  "frame-src https://www.youtube-nocookie.com https://www.youtube.com",
+  `connect-src 'self' ${TURNSTILE}`,
+  `frame-src https://www.youtube-nocookie.com https://www.youtube.com ${TURNSTILE}`,
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

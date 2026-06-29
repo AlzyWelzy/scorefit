@@ -38,6 +38,7 @@ export async function GET() {
       openReports:
         user.isAdmin || user.role === "admin" || user.role === "moderator" ? await openReportCount() : 0,
       unreadNotifications: await unreadNotificationCount(user.id),
+      deletionScheduledAt: user.deletionScheduledAt ? user.deletionScheduledAt.toISOString() : null,
       features: {
         leaderboards: featureEnabledFor("leaderboards", user.featureAllowlist),
         social: featureEnabledFor("social", user.featureAllowlist),

@@ -65,6 +65,9 @@ export const users = pgTable("users", {
   suspendedSocialAt: timestamp("suspended_social_at", { withTimezone: true }),
   // Last sign-in country (ISO code from the edge) — drives new-location security alerts.
   lastLoginCountry: text("last_login_country"),
+  // GDPR cool-off: when set, the account is scheduled for hard-deletion at this time. A
+  // daily cron purges accounts past it; the user can cancel during the grace window.
+  deletionScheduledAt: timestamp("deletion_scheduled_at", { withTimezone: true }),
   // "Where you are" — the program/week the logger and TodayCard default to, plus when
   // the user started, so the app resumes where they left off instead of always week 1.
   currentProgram: text("current_program", { enum: ["beginner", "intermediate"] }),

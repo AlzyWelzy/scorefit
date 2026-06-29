@@ -1,5 +1,28 @@
 # ScoreFit — Improvements Backlog
 
+> ## ✅ Status — implemented (last updated 2026-06-29)
+>
+> Everything in this backlog (P0–P4) plus the [GAMIFICATION.md](GAMIFICATION.md) roadmap
+> has been built and verified (typecheck + lint + 77 tests + `next build`). Shipped beyond
+> the original audit:
+> - **Ops/deploy safety:** CI schema-drift guard, TruffleHog secret scan, `npm audit` gate,
+>   migration pre-flight (additive-only), `/api/ops/health`, cron soft-timeouts, secrets playbook.
+> - **Moderation:** audit log, metrics + retention cohorts, report grouping + bulk actions,
+>   content takedown, **moderator role tier**, user management, open-report badge.
+> - **Security:** **per-device sessions + revocation**, **suspicious-login geo alerts**, HIBP
+>   breach check, **Cloudflare Turnstile**, security-event history, sign-out-everywhere.
+> - **Engagement:** notification preferences, **in-app inbox**, **weekly digest**, **web push**.
+> - **UX:** unified **`/dashboard`**, **public profiles**, mobile bottom-nav, full nav discovery.
+> - **Perf:** `/progress` SQL aggregates, **feed cursor pagination**, **materialized leaderboards**,
+>   feed composite index.
+> - **GDPR:** 30-day grace-period deletion (cancelable) + daily purge cron.
+>
+> Schema changes are migrations **0011–0019**.
+>
+> **Operational steps remaining (no code):** apply migrations 0011–0019 to prod; set prod env
+> (`REQUIRE_UPSTASH` + Upstash, Turnstile, VAPID, `SENTRY_DSN`, `CRON_SECRET`, `SMTP_*`); grant
+> an admin (`npm run create-admin`); flip `LEADERBOARDS_ENABLED` / `SOCIAL_ENABLED` when ready.
+
 A prioritized audit of the codebase across architecture, security, performance, data,
 UX, accessibility, SEO, engineering-ops, and product features. Findings are evidence-based
 with file references; severity = impact × likelihood, effort is S (<1 day) / M (days) / L (week+).

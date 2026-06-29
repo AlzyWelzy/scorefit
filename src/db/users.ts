@@ -137,6 +137,31 @@ export async function revokeLoginSession(userId: string, sessionId: string): Pro
   await db.delete(userSessions).where(and(eq(userSessions.id, sessionId), eq(userSessions.userId, userId)));
 }
 
+// ─── Account deletion (GDPR cool-off) ───────────────────────────────────────────
+
+const DELETION_GRACE_DAYS = 30;
+
+/** Schedule hard-deletion after the grace window; returns the scheduled date. */
+export async function scheduleAccountDeletion(id: string): Promise<Date> {
+  const when = new Date(Date.now() + DELETION_GRACE_DAYS * 24 * 60 * 60 * 1000);
+  await db.update(users).set({ deletionScheduledAt: when }).where(eq(users.id, id));
+  return when;
+}
+
+/** Cancel a pending deletion (the account is kept). */
+export async function cancelAccountDeletion(id: string): Promise<void> {
+  await db.update(users).set({ deletionScheduledAt: null }).where(eq(users.id, id));
+}
+
+/** Hard-delete every account whose grace window has elapsed. Returns the count purged. */
+export async function purgeScheduledDeletions(): Promise<number> {
+  const rows = await db
+    .delete(users)
+    .where(and(isNotNull(users.deletionScheduledAt), lt(users.deletionScheduledAt, new Date())))
+    .returning({ id: users.id });
+  return rows.length;
+}
+
 export async function setUnit(id: string, unit: "kg" | "lb"): Promise<void> {
   await db.update(users).set({ unit }).where(eq(users.id, id));
 }

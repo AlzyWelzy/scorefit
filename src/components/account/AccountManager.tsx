@@ -467,6 +467,7 @@ function DangerSection() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [scheduledFor, setScheduledFor] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -485,9 +486,27 @@ function DangerSection() {
         setError(await readError(res));
         return;
       }
-      await signOut({ callbackUrl: "/" });
+      const data = (await res.json().catch(() => ({}))) as { scheduledFor?: string };
+      setScheduledFor(data.scheduledFor ?? null);
     } catch {
       setError("Something went wrong. Check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function cancelDeletion() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/account/restore", { method: "POST" });
+      if (res.ok) {
+        setScheduledFor(null);
+        setOpen(false);
+        setConfirmText("");
+        setPassword("");
+      }
+    } finally {
       setBusy(false);
     }
   }
@@ -496,11 +515,26 @@ function DangerSection() {
     <section className="glass border-hard/40 p-5">
       <h2 className="eyebrow text-hard">Danger zone</h2>
       <p className="mt-3 text-sm text-muted">
-        Deleting your account is permanent. All of your workout logs and progress
-        are erased and cannot be recovered.
+        Deleting your account schedules a permanent erasure after a 30-day grace period. You can
+        cancel any time before then; after that, all logs and progress are gone for good.
       </p>
 
-      {!open ? (
+      {scheduledFor ? (
+        <div className="mt-4 space-y-3">
+          <p className="rounded-lg border border-hard/30 bg-hard/10 px-3 py-2 text-sm text-hard">
+            Scheduled for deletion on {new Date(scheduledFor).toLocaleDateString()}. You can cancel any
+            time before then.
+          </p>
+          <button
+            type="button"
+            onClick={cancelDeletion}
+            disabled={busy}
+            className="rounded-lg border border-line px-4 py-2 text-sm font-semibold text-fg transition-colors hover:bg-surface-2 disabled:opacity-60"
+          >
+            {busy ? "…" : "Cancel deletion"}
+          </button>
+        </div>
+      ) : !open ? (
         <button
           type="button"
           onClick={() => setOpen(true)}
