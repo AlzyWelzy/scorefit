@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
-import { isUserAdmin, setAdmin, setSocialSuspension } from "@/db/moderation";
+import { isUserAdmin, setAdmin, setSocialSuspension, logAdminAction } from "@/db/moderation";
 import { deleteUser } from "@/db/users";
 import { sameOrigin } from "@/lib/rateLimit";
 
@@ -48,6 +48,8 @@ export async function POST(req: Request) {
       await deleteUser(userId);
       break;
   }
+
+  await logAdminAction({ adminId: session.user.id, action: `user.${action}`, targetType: "user", targetId: userId });
 
   return NextResponse.json({ ok: true }, { status: 200 });
 }

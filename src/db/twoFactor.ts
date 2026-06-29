@@ -3,6 +3,7 @@ import { createHash, randomBytes, timingSafeEqual } from "crypto";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { users, backupCodes } from "@/db/schema";
+import { logSecurityEvent } from "@/db/security";
 
 export type TwoFactorMethod = "email" | "totp";
 
@@ -28,6 +29,7 @@ export async function enableTwoFactor(userId: string, method: TwoFactorMethod): 
     .update(users)
     .set({ twoFactorEnabled: true, twoFactorMethod: method })
     .where(eq(users.id, userId));
+  await logSecurityEvent(userId, "2fa_enabled", { method });
 }
 
 export async function disableTwoFactor(userId: string): Promise<void> {
@@ -44,6 +46,7 @@ export async function disableTwoFactor(userId: string): Promise<void> {
     })
     .where(eq(users.id, userId));
   await db.delete(backupCodes).where(eq(backupCodes.userId, userId));
+  await logSecurityEvent(userId, "2fa_disabled");
 }
 
 export async function setTwoFactorMethod(userId: string, method: TwoFactorMethod): Promise<void> {
@@ -69,6 +72,7 @@ export async function generateBackupCodes(userId: string, count = 10): Promise<s
       .set({ tokenVersion: sql`${users.tokenVersion} + 1` })
       .where(eq(users.id, userId));
   });
+  await logSecurityEvent(userId, "backup_codes_regenerated");
   return codes;
 }
 

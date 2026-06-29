@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
-import { isUserAdmin, resolveReport, setSocialSuspension, getReportById } from "@/db/moderation";
+import { isUserAdmin, resolveReport, setSocialSuspension, getReportById, logAdminAction } from "@/db/moderation";
 import { hideActivityEvent } from "@/db/social";
 import { captureException } from "@/lib/observability";
 import { sameOrigin } from "@/lib/rateLimit";
@@ -51,6 +51,18 @@ export async function POST(req: Request) {
       await setSocialSuspension(parsed.data.suspendUserId, true);
     }
   }
+
+  await logAdminAction({
+    adminId: session.user.id,
+    action: `report.${parsed.data.outcome}`,
+    targetType: "report",
+    targetId: parsed.data.reportId,
+    detail: {
+      suspended: parsed.data.outcome === "actioned" && !!parsed.data.suspendUserId,
+      contentTargetType: report.targetType,
+      contentTargetId: report.targetId,
+    },
+  });
 
   return NextResponse.json({ ok: true }, { status: 200 });
 }

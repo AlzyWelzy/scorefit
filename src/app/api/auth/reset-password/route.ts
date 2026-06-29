@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getUserByEmail, setPasswordHash, markEmailVerified } from "@/db/users";
 import { verifyToken } from "@/db/tokens";
 import { rateLimit, clientIp, sameOrigin } from "@/lib/rateLimit";
+import { isPwnedPassword } from "@/lib/pwned";
 
 export const runtime = "nodejs";
 
@@ -27,6 +28,15 @@ export async function POST(req: Request) {
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
+  }
+
+  // Reject breached passwords (HIBP k-anonymity; fails open). Password-only signal, so it
+  // doesn't leak whether the account/code is valid.
+  if (await isPwnedPassword(parsed.data.password)) {
+    return NextResponse.json(
+      { error: "That password has appeared in a data breach. Please choose a different one." },
+      { status: 400 },
+    );
   }
 
   const user = await getUserByEmail(parsed.data.email);

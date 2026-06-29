@@ -12,6 +12,10 @@ on:
 jobs:
   migrate:
     runs-on: ubuntu-latest
+    # Map the secret to a job env so it can be referenced in `if:` (the `secrets` context
+    # isn't available in step/job conditionals; `env` is).
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -19,11 +23,12 @@ jobs:
           node-version-file: ".nvmrc"
           cache: "npm"
       - run: npm ci
+      - name: Migration pre-flight (additive-only)
+        if: ${{ env.DATABASE_URL != '' }}
+        run: node scripts/check-migrations.mjs
       - name: Apply migrations
-        if: ${{ secrets.DATABASE_URL != '' }}
+        if: ${{ env.DATABASE_URL != '' }}
         run: npm run db:migrate
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
       - name: Skipped (no DATABASE_URL secret)
-        if: ${{ secrets.DATABASE_URL == '' }}
+        if: ${{ env.DATABASE_URL == '' }}
         run: echo "DATABASE_URL secret not set — skipping migrations."

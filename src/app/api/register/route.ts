@@ -7,6 +7,7 @@ import { issueToken } from "@/db/tokens";
 import { sendVerificationCode } from "@/lib/mailer";
 import { rateLimit, clientIp, sameOrigin } from "@/lib/rateLimit";
 import { captureException } from "@/lib/observability";
+import { isPwnedPassword } from "@/lib/pwned";
 
 export const runtime = "nodejs";
 
@@ -45,6 +46,15 @@ export async function POST(req: Request) {
     );
   }
   const email = parsed.data.email.toLowerCase();
+
+  // Reject passwords known to be in a breach corpus (HIBP k-anonymity; fails open). Runs
+  // for every request regardless of email, so it adds no enumeration signal.
+  if (await isPwnedPassword(parsed.data.password)) {
+    return NextResponse.json(
+      { error: "That password has appeared in a data breach. Please choose a different one." },
+      { status: 400 },
+    );
+  }
 
   // Always pay the hash cost so taken/available emails take comparable time
   // (no timing oracle) and the create path is atomic via onConflictDoNothing.

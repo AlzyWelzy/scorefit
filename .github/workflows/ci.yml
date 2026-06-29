@@ -4,6 +4,9 @@ on:
   push:
     branches: [main, improvements, feature/gamification, feature/new-features]
   pull_request:
+  schedule:
+    # Weekly dependency-advisory sweep (Mon 06:00 UTC) so new CVEs surface even without a push.
+    - cron: "0 6 * * 1"
 
 jobs:
   check:
@@ -27,3 +30,53 @@ jobs:
           # no real connection is made during a static build.
           DATABASE_URL: "postgres://ci:ci@localhost:5432/ci"
           AUTH_SECRET: "ci-placeholder-secret-not-used-at-build-time"
+
+  # Fail if schema.ts is ahead of the committed migrations — prevents the prod drift that
+  # happens when the schema changes (or db:push is used) without a generated migration.
+  schema-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: "npm"
+      - run: npm ci
+      - name: Generate migrations from schema
+        run: npm run db:generate
+      - name: Fail on uncommitted drift
+        run: |
+          if [ -n "$(git status --porcelain drizzle)" ]; then
+            echo "::error::schema.ts is ahead of the committed migrations. Run 'npm run db:generate' and commit the result."
+            git --no-pager diff -- drizzle
+            git status --porcelain drizzle
+            exit 1
+          fi
+          echo "No schema drift."
+
+  # Dependency vulnerabilities: block PRs on CRITICAL (actionable emergencies); print the
+  # full advisory report non-blocking (the weekly schedule keeps it visible over time).
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: "npm"
+      - run: npm ci
+      - name: Block on critical advisories
+        run: npm audit --audit-level=critical
+      - name: Full advisory report (non-blocking)
+        run: npm audit || true
+
+  # Secret scanning: catch committed DB URLs, keys, or .env files before they land.
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: TruffleHog filesystem scan
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          extra_args: --only-verified

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getUserById } from "@/db/users";
+import { openReportCount } from "@/db/moderation";
 import { featureEnabledFor } from "@/lib/flags";
 
 export const runtime = "nodejs";
@@ -31,6 +32,8 @@ export async function GET() {
       // Drives which nav links the client shows: gamified surfaces + flag-gated pages.
       gamificationOptOut: user.gamificationOptOut,
       isAdmin: user.isAdmin,
+      // Open-report count for the admin nav badge (0 for non-admins — no leak).
+      openReports: user.isAdmin ? await openReportCount() : 0,
       features: {
         leaderboards: featureEnabledFor("leaderboards", user.featureAllowlist),
         social: featureEnabledFor("social", user.featureAllowlist),

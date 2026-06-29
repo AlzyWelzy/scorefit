@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { users, workoutSessions } from "@/db/schema";
+import { users, workoutSessions, notificationPreferences } from "@/db/schema";
 import { sendMail } from "@/lib/mailer";
-import { isAuthorizedCron } from "@/lib/cron";
+import { isAuthorizedCron, withCronTimeout } from "@/lib/cron";
 import { captureException } from "@/lib/observability";
 
 export const runtime = "nodejs";
@@ -35,9 +35,10 @@ function inQuietHours(timezone: string): boolean {
 export async function GET(req: Request) {
   if (!isAuthorizedCron(req)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  let sent = 0;
-  let skippedQuiet = 0;
   try {
+    const { sent, skippedQuiet } = await withCronTimeout("reminders", async () => {
+    let sent = 0;
+    let skippedQuiet = 0;
     const candidates = await db
       .select({
         id: users.id,
@@ -47,10 +48,13 @@ export async function GET(req: Request) {
       })
       .from(users)
       .innerJoin(workoutSessions, eq(workoutSessions.userId, users.id))
+      .leftJoin(notificationPreferences, eq(notificationPreferences.userId, users.id))
       .where(
         and(
           eq(users.gamificationOptOut, false),
           sql`${users.emailVerified} is not null`,
+          // Respect the user's notification preference (default-on when no row exists).
+          or(isNull(notificationPreferences.reminders), eq(notificationPreferences.reminders, true)),
           // Frequency cap: not reminded within the cooldown.
           sql`(${users.lastReminderAt} is null or ${users.lastReminderAt} < now() - ${REMINDER_COOLDOWN_DAYS} * interval '1 day')`,
         ),
@@ -79,10 +83,11 @@ export async function GET(req: Request) {
         await captureException(err, { where: "cron.reminders.send" });
       }
     }
+    return { sent, skippedQuiet };
+    });
+    return NextResponse.json({ ok: true, sent, skippedQuiet }, { status: 200 });
   } catch (err) {
     await captureException(err, { where: "cron.reminders" });
     return NextResponse.json({ ok: false }, { status: 500 });
   }
-
-  return NextResponse.json({ ok: true, sent, skippedQuiet }, { status: 200 });
 }

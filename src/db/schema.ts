@@ -335,6 +335,51 @@ export const reports = pgTable(
   ],
 );
 
+// Append-only audit trail of privileged admin actions (moderation, user management,
+// content takedowns). Read on /admin/audit. Never updated or deleted — the record is the
+// point. adminId is nullable + ON DELETE SET NULL so deleting an admin keeps the history.
+export const adminAuditLog = pgTable(
+  "admin_audit_log",
+  {
+    id: uuid("id").primaryKey().$defaultFn(newId),
+    adminId: uuid("admin_id").references(() => users.id, { onDelete: "set null" }),
+    action: text("action").notNull(), // e.g. "report.actioned", "user.suspend", "user.delete"
+    targetType: text("target_type"), // "report" | "user" | "activity_event" | …
+    targetId: text("target_id"),
+    detail: jsonb("detail").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("idx_audit_created").on(t.createdAt)],
+);
+
+// Per-user security history (credential changes, 2FA toggles, email changes). Shown on
+// /account/security so users can spot anything they didn't do. Append-only.
+export const securityEvents = pgTable(
+  "security_events",
+  {
+    id: uuid("id").primaryKey().$defaultFn(newId),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(), // password_changed | 2fa_enabled | 2fa_disabled | backup_codes_regenerated | email_changed
+    meta: jsonb("meta").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("idx_security_user").on(t.userId, t.createdAt)],
+);
+
+// Per-user notification channel preferences. One row per user (created on first change);
+// absence means "all defaults on". Every send path must check these before emailing.
+export const notificationPreferences = pgTable("notification_preferences", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  reminders: boolean("reminders").notNull().default(true), // lapse / streak-at-risk nudges
+  digest: boolean("digest").notNull().default(true), // weekly progress digest
+  social: boolean("social").notNull().default(true), // follows / kudos / group invites
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 // Bodyweight / body-measurement tracking (P4). One row per user per local day; the
 // weight is stored in the user's current unit (converted on a unit switch like logs).
 // Deliberately minimal — bodyweight only — and NEVER fed into any leaderboard, XP, or
@@ -430,6 +475,8 @@ export const activityEvents = pgTable(
   },
   (t) => [
     index("idx_activity_user").on(t.userId, t.createdAt),
+    // Feed read path: filter by author + not-hidden, order by recency.
+    index("idx_activity_feed").on(t.userId, t.hiddenAt, t.createdAt),
     // Idempotency: at most one event of a kind per user per day (re-saves don't duplicate).
     unique("uq_activity").on(t.userId, t.kind, t.occurredOn),
   ],

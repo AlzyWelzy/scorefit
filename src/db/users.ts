@@ -2,6 +2,7 @@ import "server-only";
 import { and, eq, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { users, workoutLogs, type User } from "@/db/schema";
+import { logSecurityEvent } from "@/db/security";
 
 /** kg→lb and lb→kg factors for converting stored loads on a unit change. */
 export const UNIT_FACTOR = { kgToLb: 2.20462262, lbToKg: 0.45359237 } as const;
@@ -67,7 +68,9 @@ export async function applyPendingEmail(id: string, email: string): Promise<bool
     })
     .where(and(eq(users.id, id), eq(users.pendingEmail, target)))
     .returning({ id: users.id });
-  return rows.length > 0;
+  const ok = rows.length > 0;
+  if (ok) await logSecurityEvent(id, "email_changed");
+  return ok;
 }
 
 /**
@@ -94,6 +97,14 @@ export async function setPasswordHash(id: string, passwordHash: string): Promise
     .update(users)
     .set({ passwordHash, tokenVersion: sql`${users.tokenVersion} + 1` })
     .where(eq(users.id, id));
+  await logSecurityEvent(id, "password_changed");
+}
+
+/** Sign the user out of ALL sessions (incl. the current one) by bumping the token version
+ *  the JWT is validated against. Revocation is eventual, bounded by the jwt re-check window. */
+export async function bumpTokenVersion(id: string): Promise<void> {
+  await db.update(users).set({ tokenVersion: sql`${users.tokenVersion} + 1` }).where(eq(users.id, id));
+  await logSecurityEvent(id, "signed_out_all");
 }
 
 export async function setUnit(id: string, unit: "kg" | "lb"): Promise<void> {

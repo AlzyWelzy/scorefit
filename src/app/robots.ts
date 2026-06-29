@@ -8,6 +8,7 @@ export default function robots(): MetadataRoute.Robots {
       // Private/authenticated surfaces — never index user dashboards, auth flows,
       // or (forthcoming) gamified social/leaderboard pages.
       disallow: [
+        "/dashboard",
         "/log",
         "/progress",
         "/account",

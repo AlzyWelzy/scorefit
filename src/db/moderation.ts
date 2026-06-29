@@ -1,7 +1,7 @@
 import "server-only";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { reports, users, type Report } from "@/db/schema";
+import { reports, users, adminAuditLog, type Report } from "@/db/schema";
 
 export type ReportTargetType = Report["targetType"];
 export type ReportReason = Report["reason"];
@@ -133,6 +133,67 @@ export async function setAdmin(userId: string, isAdmin: boolean): Promise<void> 
   await db.update(users).set({ isAdmin }).where(eq(users.id, userId));
 }
 
+// ─── Admin audit log ───────────────────────────────────────────────────────────
+
+/** Record a privileged admin action (append-only). Best-effort; never throws upward. */
+export async function logAdminAction(entry: {
+  adminId: string;
+  action: string;
+  targetType?: string | null;
+  targetId?: string | null;
+  detail?: Record<string, unknown> | null;
+}): Promise<void> {
+  try {
+    await db.insert(adminAuditLog).values({
+      adminId: entry.adminId,
+      action: entry.action,
+      targetType: entry.targetType ?? null,
+      targetId: entry.targetId ?? null,
+      detail: entry.detail ?? null,
+    });
+  } catch {
+    // Auditing must never block the action it records.
+  }
+}
+
+export type AuditRow = {
+  id: string;
+  adminName: string | null;
+  action: string;
+  targetType: string | null;
+  targetId: string | null;
+  detail: Record<string, unknown> | null;
+  createdAt: Date;
+};
+
+/** Recent admin actions, newest first. */
+export async function listAuditLog(limit = 100): Promise<AuditRow[]> {
+  const rows = await db
+    .select({
+      id: adminAuditLog.id,
+      adminName: users.displayName,
+      adminEmail: users.email,
+      action: adminAuditLog.action,
+      targetType: adminAuditLog.targetType,
+      targetId: adminAuditLog.targetId,
+      detail: adminAuditLog.detail,
+      createdAt: adminAuditLog.createdAt,
+    })
+    .from(adminAuditLog)
+    .leftJoin(users, eq(adminAuditLog.adminId, users.id))
+    .orderBy(desc(adminAuditLog.createdAt))
+    .limit(limit);
+  return rows.map((r) => ({
+    id: r.id,
+    adminName: r.adminName ?? r.adminEmail ?? null,
+    action: r.action,
+    targetType: r.targetType,
+    targetId: r.targetId,
+    detail: r.detail,
+    createdAt: r.createdAt,
+  }));
+}
+
 export type AdminUserRow = {
   id: string;
   email: string;
@@ -194,4 +255,57 @@ export async function setSocialSuspension(userId: string, suspended: boolean): P
   };
   if (suspended) set.leaderboardOptIn = false;
   await db.update(users).set(set).where(eq(users.id, userId));
+}
+
+// ─── Report grouping & bulk resolution ──────────────────────────────────────────
+
+export type ReportGroup = {
+  targetType: ReportTargetType;
+  targetId: string;
+  reportedUserId: string | null;
+  count: number;
+  reasons: string[];
+  latestAt: Date;
+};
+
+/** Open reports grouped by their target, most-reported first — surfaces coordinated abuse
+ *  that the flat per-report queue hides. */
+export async function groupOpenReports(limit = 50): Promise<ReportGroup[]> {
+  const rows = await db
+    .select({
+      targetType: reports.targetType,
+      targetId: reports.targetId,
+      reportedUserId: sql<string | null>`max(${reports.reportedUserId}::text)`,
+      count: sql<number>`count(*)::int`,
+      reasons: sql<string[]>`array_agg(distinct ${reports.reason})`,
+      latestAt: sql<Date>`max(${reports.createdAt})`,
+    })
+    .from(reports)
+    .where(eq(reports.status, "open"))
+    .groupBy(reports.targetType, reports.targetId)
+    .orderBy(sql`count(*) desc`)
+    .limit(limit);
+  return rows.map((r) => ({
+    targetType: r.targetType as ReportTargetType,
+    targetId: r.targetId,
+    reportedUserId: r.reportedUserId,
+    count: r.count,
+    reasons: r.reasons,
+    latestAt: r.latestAt,
+  }));
+}
+
+/** Resolve every open report against one target in a single action. Returns the count. */
+export async function resolveReportsForTarget(
+  targetType: ReportTargetType,
+  targetId: string,
+  adminId: string,
+  outcome: "actioned" | "dismissed",
+): Promise<number> {
+  const rows = await db
+    .update(reports)
+    .set({ status: outcome, resolvedByAdminId: adminId, resolvedAt: new Date() })
+    .where(and(eq(reports.targetType, targetType), eq(reports.targetId, targetId), eq(reports.status, "open")))
+    .returning({ id: reports.id });
+  return rows.length;
 }

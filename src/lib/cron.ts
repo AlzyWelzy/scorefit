@@ -16,3 +16,21 @@ export function isAuthorizedCron(req: Request): boolean {
   if (a.length !== b.length) return false;
   return timingSafeEqual(a, b);
 }
+
+/**
+ * Run a cron body with a soft timeout BELOW Vercel's 30s hard kill, so a long-running job
+ * (e.g. reconcile scanning every user) surfaces a logged timeout + 500 instead of being
+ * silently terminated mid-flight. The underlying work can't be truly cancelled, but the
+ * crons are idempotent/resumable, so the next scheduled run picks up where this left off.
+ */
+export async function withCronTimeout<T>(label: string, fn: () => Promise<T>, ms = 25_000): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`cron "${label}" exceeded ${ms}ms (soft timeout)`)), ms);
+  });
+  try {
+    return await Promise.race([fn(), timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}

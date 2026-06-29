@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { userGameProfile } from "@/db/schema";
 import { closeWeekForUser, rolloverSeasonForUser, resolveDueChallenges } from "@/db/phase4";
-import { isAuthorizedCron } from "@/lib/cron";
+import { isAuthorizedCron, withCronTimeout } from "@/lib/cron";
 import { captureException } from "@/lib/observability";
 
 export const runtime = "nodejs";
@@ -18,26 +18,27 @@ export async function GET(req: Request) {
   // local nuance is bounded to a day and self-corrects on the next run.
   const today = new Date().toISOString().slice(0, 10);
 
-  let froze = 0;
-  let processed = 0;
-  let challengesResolved = 0;
   try {
-    const profiles = await db.select({ userId: userGameProfile.userId }).from(userGameProfile);
-    for (const p of profiles) {
-      try {
-        const r = await closeWeekForUser(p.userId, today);
-        if (r.froze) froze += 1;
-        await rolloverSeasonForUser(p.userId, today);
-        processed += 1;
-      } catch (err) {
-        await captureException(err, { where: "cron.weekClose.user", extra: { userId: p.userId } });
+    const { processed, froze, challengesResolved } = await withCronTimeout("week-close", async () => {
+      let froze = 0;
+      let processed = 0;
+      const profiles = await db.select({ userId: userGameProfile.userId }).from(userGameProfile);
+      for (const p of profiles) {
+        try {
+          const r = await closeWeekForUser(p.userId, today);
+          if (r.froze) froze += 1;
+          await rolloverSeasonForUser(p.userId, today);
+          processed += 1;
+        } catch (err) {
+          await captureException(err, { where: "cron.weekClose.user", extra: { userId: p.userId } });
+        }
       }
-    }
-    challengesResolved = await resolveDueChallenges(today);
+      const challengesResolved = await resolveDueChallenges(today);
+      return { processed, froze, challengesResolved };
+    });
+    return NextResponse.json({ ok: true, processed, froze, challengesResolved }, { status: 200 });
   } catch (err) {
     await captureException(err, { where: "cron.weekClose" });
     return NextResponse.json({ ok: false }, { status: 500 });
   }
-
-  return NextResponse.json({ ok: true, processed, froze, challengesResolved }, { status: 200 });
 }

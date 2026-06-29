@@ -7,6 +7,7 @@ import { CommandPaletteMount } from "@/components/CommandPaletteMount";
 import { AuthSessionProvider } from "@/components/auth/AuthSessionProvider";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { TimezoneSync } from "@/components/TimezoneSync";
+import { MobileBottomNav } from "@/components/MobileBottomNav";
 import { VerifyBanner } from "@/components/auth/VerifyBanner";
 import { siteGraph, ldJson } from "@/lib/structuredData";
 
@@ -93,11 +94,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AuthSessionProvider>
           <SiteHeader />
           <VerifyBanner />
-          <main id="main">{children}</main>
+          <main id="main" className="pb-16 md:pb-0">{children}</main>
           <Footer />
           <CommandPaletteMount />
           <ServiceWorkerRegister />
           <TimezoneSync />
+          <MobileBottomNav />
         </AuthSessionProvider>
       </body>
     </html>

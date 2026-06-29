@@ -16,6 +16,9 @@ import {
   Users,
   Settings,
   Shield,
+  LayoutDashboard,
+  KeyRound,
+  Bell,
 } from "lucide-react";
 
 type Features = { leaderboards: boolean; social: boolean };
@@ -30,6 +33,7 @@ export function AuthNav() {
   const [features, setFeatures] = useState<Features>({ leaderboards: false, social: false });
   const [gamificationOptOut, setGamificationOptOut] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [openReports, setOpenReports] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -42,6 +46,7 @@ export function AuthNav() {
         if (d.features) setFeatures(d.features);
         setGamificationOptOut(!!d.gamificationOptOut);
         setIsAdmin(!!d.isAdmin);
+        setOpenReports(Number(d.openReports) || 0);
       })
       .catch(() => {});
     return () => {
@@ -80,6 +85,7 @@ export function AuthNav() {
 
   const gamified = !gamificationOptOut;
   const items = [
+    { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard, show: true },
     { href: "/progress", label: "Progress", Icon: TrendingUp, show: true },
     { href: "/profile", label: "Training Score", Icon: Gauge, show: gamified },
     { href: "/achievements", label: "Achievements", Icon: Award, show: gamified },
@@ -104,13 +110,16 @@ export function AuthNav() {
       <div className="relative" ref={ref}>
         <button
           onClick={() => setOpen((v) => !v)}
-          className="btn-surface inline-flex items-center gap-1 px-2.5 py-2 text-muted hover:text-fg"
+          className="btn-surface relative inline-flex items-center gap-1 px-2.5 py-2 text-muted hover:text-fg"
           aria-haspopup="menu"
           aria-expanded={open}
-          aria-label="Account menu"
+          aria-label={isAdmin && openReports > 0 ? `Account menu (${openReports} open reports)` : "Account menu"}
         >
           <UserRound className="h-3.5 w-3.5" />
           <ChevronDown className="h-3 w-3" />
+          {isAdmin && openReports > 0 && (
+            <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-hard ring-2 ring-bg" aria-hidden />
+          )}
         </button>
 
         {open && (
@@ -129,8 +138,21 @@ export function AuthNav() {
               <Link href="/admin" role="menuitem" onClick={() => setOpen(false)} className={itemClass}>
                 <Shield className="h-4 w-4 shrink-0" />
                 Admin
+                {openReports > 0 && (
+                  <span className="ml-auto rounded-full bg-hard px-1.5 py-0.5 text-[10px] font-semibold text-bg">
+                    {openReports}
+                  </span>
+                )}
               </Link>
             )}
+            <Link href="/account/notifications" role="menuitem" onClick={() => setOpen(false)} className={itemClass}>
+              <Bell className="h-4 w-4 shrink-0" />
+              Notifications
+            </Link>
+            <Link href="/account/security" role="menuitem" onClick={() => setOpen(false)} className={itemClass}>
+              <KeyRound className="h-4 w-4 shrink-0" />
+              Security
+            </Link>
             <Link href="/account" role="menuitem" onClick={() => setOpen(false)} className={itemClass}>
               <Settings className="h-4 w-4 shrink-0" />
               Account

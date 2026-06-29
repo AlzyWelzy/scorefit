@@ -12,6 +12,7 @@ export default NextAuth(authConfig).auth;
 export const config = {
   // Every authenticated page surface (each also does its own auth() + redirect).
   matcher: [
+    "/dashboard/:path*",
     "/log/:path*",
     "/progress/:path*",
     "/account/:path*",
